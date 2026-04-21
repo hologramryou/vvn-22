@@ -1,0 +1,79 @@
+belt_ranks:
+  competing:
+    - key: tu_ve_nhap_mon
+      label: "Tự vệ nhập môn"
+      color: "#A8D8EA"
+    - key: lam_dai_nhap_mon
+      label: "Lam đai nhập môn"
+      color: "#3A7BD5"
+    - key: lam_dai_1
+      label: "Lam đai I"
+      color: "#3A7BD5"
+    - key: lam_dai_2
+      label: "Lam đai II"
+      color: "#3A7BD5"
+    - key: lam_dai_3
+      label: "Lam đai III"
+      color: "#3A7BD5"
+    - key: chuan_hoang_dai
+      label: "Chuẩn Hoàng đai"
+      color: "#F5A623"
+    - key: hoang_dai
+      label: "Hoàng đai"
+      color: "#F5A623"
+    - key: hoang_dai_1
+      label: "Hoàng đai I"
+      color: "#F5A623"
+    - key: hoang_dai_2
+      label: "Hoàng đai II"
+      color: "#F5A623"
+    - key: hoang_dai_3
+      label: "Hoàng đai III"
+      color: "#F5A623"
+    - key: chuan_hong_dai
+      label: "Chuẩn Hồng đai"
+      color: "#E8572A"
+  non_competing:
+    - key: hong_dai_1
+      label: "Hồng đai I"
+    - key: hong_dai_2
+      label: "Hồng đai II"
+    - key: hong_dai_3
+      label: "Hồng đai III"
+    - key: hong_dai_4
+      label: "Hồng đai IV"
+    - key: hong_dai_5
+      label: "Hồng đai V"
+    - key: hong_dai_6
+      label: "Hồng đai VI"
+    - key: bach_dai
+      label: "Bạch đai"
+
+weight_classes:
+  nam:
+    - { key: nam_45,  label: "45 kg",      range: "Dưới 45 kg",        value: 45 }
+    - { key: nam_48,  label: "48 kg",      range: "45 – 48 kg",        value: 48 }
+    - { key: nam_51,  label: "51 kg",      range: "48 – 51 kg",        value: 51 }
+    - { key: nam_54,  label: "54 kg",      range: "51 – 54 kg",        value: 54 }
+    - { key: nam_57,  label: "57 kg",      range: "54 – 57 kg",        value: 57 }
+    - { key: nam_60,  label: "60 kg",      range: "57 – 60 kg",        value: 60 }
+    - { key: nam_64,  label: "64 kg",      range: "60 – 64 kg",        value: 64 }
+    - { key: nam_68,  label: "68 kg",      range: "64 – 68 kg",        value: 68 }
+    - { key: nam_72,  label: "72 kg",      range: "68 – 72 kg",        value: 72 }
+    - { key: nam_77,  label: "77 kg",      range: "72 – 77 kg",        value: 77 }
+    - { key: nam_82,  label: "82 kg",      range: "77 – 82 kg",        value: 82 }
+    - { key: nam_92,  label: "92 kg",      range: "82 – 92 kg",        value: 92 }
+    - { key: nam_92p, label: "Trên 92 kg", range: "Hạng nặng tuyệt đối", value: 999 }
+  nu:
+    - { key: nu_42,  label: "42 kg",      range: "Dưới 42 kg", value: 42 }
+    - { key: nu_45,  label: "45 kg",      range: "42 – 45 kg", value: 45 }
+    - { key: nu_48,  label: "48 kg",      range: "45 – 48 kg", value: 48 }
+    - { key: nu_51,  label: "51 kg",      range: "48 – 51 kg", value: 51 }
+    - { key: nu_54,  label: "54 kg",      range: "51 – 54 kg", value: 54 }
+    - { key: nu_57,  label: "57 kg",      range: "54 – 57 kg", value: 57 }
+    - { key: nu_60,  label: "60 kg",      range: "57 – 60 kg", value: 60 }
+    - { key: nu_63,  label: "63 kg",      range: "60 – 63 kg", value: 63 }
+    - { key: nu_66,  label: "66 kg",      range: "63 – 66 kg", value: 66 }
+    - { key: nu_70,  label: "70 kg",      range: "66 – 70 kg", value: 70 }
+    - { key: nu_75,  label: "75 kg",      range: "70 – 75 kg", value: 75 }
+    - { key: nu_75p, label: "Trên 75 kg", range: "Hạng nặng",  value: 999 }

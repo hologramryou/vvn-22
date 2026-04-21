@@ -1,0 +1,456 @@
+﻿metadata:
+  spec_id: "SPEC-001"
+  project_name: "Vovinam Fighting — Student Management"
+  version: "3.0.0"
+  created_at: "2026-03-24"
+  updated_at: "2026-03-25"
+  status: "ready"
+  module: "01_student_management"
+  source_spec: "basic_design/01_student_management/student_list.md"
+  authors:
+    - name: "AI Writer Agent"
+      role: "automated"
+
+scope:
+  in_scope:
+    - "Danh sách môn sinh với phân trang và sắp xếp"
+    - "Tìm kiếm và lọc đa tiêu chí"
+    - "Tạo mới môn sinh thủ công qua form 1 màn hình (2 cột desktop, 1 cột mobile)"
+    - "Danh sách hiển thị compete_events trực tiếp trong row nếu đã đăng ký"
+    - "Import hàng loạt từ file Excel (.xlsx)"
+    - "Xem chi tiết môn sinh (3 tab)"
+    - "Chỉnh sửa thông tin môn sinh"
+    - "Xoá mềm môn sinh"
+    - "Tự động sinh mã VĐV"
+  out_of_scope:
+    - "Quản lý HLV"
+    - "Quản lý CLB"
+    - "Chấm điểm thi đấu"
+
+stakeholders:
+  - id: "STK-001"
+    role: "admin"
+    name: "Quản trị viên Liên đoàn"
+    responsibilities:
+      - "Toàn quyền thao tác: xem, tạo, sửa, xoá, import"
+  - id: "STK-002"
+    role: "club_manager"
+    name: "Quản lý Câu lạc bộ"
+    responsibilities:
+      - "Thao tác môn sinh thuộc CLB của mình"
+  - id: "STK-003"
+    role: "viewer"
+    name: "Người xem"
+    responsibilities:
+      - "Chỉ xem danh sách và chi tiết"
+
+requirements:
+  - id: "REQ-F01"
+    type: "functional"
+    priority: "high"
+    status: "resolved"
+    description: "The system shall display a paginated, sortable table of students with 20 records per page."
+    tags:
+      primary: "functional"
+      secondary: ["ui", "data"]
+    columns:
+      - "full_name"
+      - "code"
+      - "club_name"
+      - "belt_rank"
+      - "weight_class"
+      - "compete_events"  # tags — hidden if null/empty
+      - "status"
+      - "actions"
+    acceptance_criteria:
+      - id: "AC-001"
+        given: "A user navigates to the student list page"
+        when: "The page finishes loading"
+        then: "A table is displayed with 20 records per page and pagination controls"
+        testable: true
+
+  - id: "REQ-F02"
+    type: "functional"
+    priority: "high"
+    status: "resolved"
+    description: "The system shall filter the student list in real-time using multiple concurrent filters."
+    tags:
+      primary: "functional"
+      secondary: ["ui"]
+    filters:
+      - field: "keyword"
+        type: "text"
+        targets: ["full_name", "code", "id_number"]
+        debounce_ms: 300
+      - field: "club_id"
+        type: "dropdown"
+        source: "clubs"
+      - field: "belt_rank"
+        type: "dropdown"
+        values: ["Vang", "Xanh", "Nau", "Den 1", "Den 2", "Den 3", "Den 4", "Den 5", "Den 6", "Den 7", "Den 8", "Den 9"]
+      - field: "weight_class"
+        type: "dropdown"
+        source: "vovinam_weight_classes"
+      - field: "province_id"
+        type: "dropdown"
+        source: "provinces"
+      - field: "status"
+        type: "radio"
+        values: ["all", "active", "inactive"]
+    acceptance_criteria:
+      - id: "AC-002"
+        given: "A user types a keyword into the search box"
+        when: "300ms have elapsed since the last keystroke"
+        then: "The table updates to show only matching records without a page reload"
+        testable: true
+
+  - id: "REQ-F03"
+    type: "functional"
+    priority: "high"
+    status: "resolved"
+    description: "The system shall allow authorized users to create a new student via a 2-tab form."
+    tags:
+      primary: "functional"
+      secondary: ["ui", "data", "auth"]
+    form_tabs:
+      - tab: "personal_info"
+        fields:
+          - name: "full_name"
+            required: true
+            type: "text"
+            validation: "min:2 max:100"
+          - name: "date_of_birth"
+            required: true
+            type: "date"
+            validation: "lte:today"
+          - name: "gender"
+            required: true
+            type: "radio"
+            values: ["M", "F"]
+          - name: "id_number"
+            required: true
+            type: "text"
+            validation: "digits:9,12 unique:students.id_number"
+          - name: "phone"
+            required: false
+            type: "text"
+            validation: "digits:10 starts_with:0"
+          - name: "email"
+            required: false
+            type: "email"
+            validation: "rfc5322"
+          - name: "address"
+            required: false
+            type: "text"
+          - name: "avatar"
+            required: false
+            type: "file"
+            validation: "mime:jpg,png max_size_mb:2 aspect_ratio:3:4"
+      - tab: "martial_arts_info"
+        fields:
+          - name: "club_id"
+            required: true
+            type: "dropdown"
+            source: "clubs"
+            validation: "exists:clubs.id"
+          - name: "province_id"
+            required: true
+            type: "dropdown"
+            source: "provinces"
+          - name: "join_date"
+            required: true
+            type: "date"
+            validation: "lte:today"
+          - name: "current_belt"
+            required: true
+            type: "dropdown"
+            values: ["Vang", "Xanh", "Nau", "Den 1", "Den 2", "Den 3", "Den 4", "Den 5", "Den 6", "Den 7", "Den 8", "Den 9"]
+          - name: "belt_date"
+            required: false
+            type: "date"
+            validation: "lte:today"
+          - name: "weight_class"
+            required: false
+            type: "decimal"
+            validation: "gt:0"
+          - name: "compete_events"
+            required: false
+            type: "multi_select"
+            values: ["sparring", "don_luyen", "song_luyen", "da_luyen", "don_chan"]
+          - name: "notes"
+            required: false
+            type: "textarea"
+            validation: "max:500"
+    form_actions:
+      - action: "save"
+        behavior: "validate_all → create_record → redirect_to_detail"
+      - action: "save_and_add"
+        behavior: "validate_all → create_record → reset_form"
+      - action: "cancel"
+        behavior: "if_dirty → confirm_dialog → redirect_to_list"
+    acceptance_criteria:
+      - id: "AC-003"
+        given: "A user submits the form with a required field empty"
+        when: "The form is submitted"
+        then: "An inline validation error is shown at the field and the form is not submitted"
+        testable: true
+      - id: "AC-004"
+        given: "A user submits a form with a CCCD that already exists in the system"
+        when: "The form is submitted"
+        then: "An error message 'CCCD đã tồn tại trong hệ thống' is displayed and the record is not created"
+        testable: true
+
+  - id: "REQ-F04"
+    type: "functional"
+    priority: "high"
+    status: "resolved"
+    description: "The system shall allow batch import of students from an .xlsx file with preview and error reporting."
+    tags:
+      primary: "functional"
+      secondary: ["data"]
+    import_flow:
+      - step: 1
+        name: "file_select"
+        validation: "mime:xlsx max_size_mb:10"
+      - step: 2
+        name: "structure_validate"
+        on_fail: "stop_import show_missing_columns"
+      - step: 3
+        name: "row_preview"
+        highlight_invalid: true
+        highlight_valid: true
+      - step: 4
+        name: "confirm"
+      - step: 5
+        name: "result"
+        outputs: ["success_count", "fail_count", "downloadable_error_report_xlsx"]
+    required_columns:
+      - "ho_ten"
+      - "ngay_sinh"
+      - "gioi_tinh"
+      - "cccd"
+      - "ten_cau_lac_bo"
+      - "tinh_thanh"
+      - "ngay_nhap_mon"
+      - "dai_cap"
+    optional_columns:
+      - "so_dien_thoai"
+      - "hang_can"
+      - "noi_dung_thi_dau"
+    error_rules:
+      - error: "missing_required_column"
+        action: "stop_all"
+      - error: "duplicate_id_number"
+        action: "skip_row log_error"
+      - error: "club_not_found"
+        action: "skip_row log_error"
+      - error: "invalid_date_format"
+        action: "skip_row log_error"
+      - error: "file_too_large"
+        action: "reject_before_processing"
+    acceptance_criteria:
+      - id: "AC-005"
+        given: "A valid .xlsx file with 100 rows and correct structure"
+        when: "The import is confirmed"
+        then: "All valid rows are imported and the process completes in under 10 seconds"
+        testable: true
+      - id: "AC-006"
+        given: "A file where some rows have duplicate CCCD values"
+        when: "The import runs"
+        then: "Duplicate rows are skipped and remaining valid rows are imported successfully"
+        testable: true
+      - id: "AC-007"
+        given: "A file missing a required column"
+        when: "The file is uploaded"
+        then: "Import stops immediately and displays the list of missing columns"
+        testable: true
+      - id: "AC-008"
+        given: "A file larger than 10MB"
+        when: "The file is selected"
+        then: "The system rejects the file before processing and shows an error message"
+        testable: true
+
+  - id: "REQ-F05"
+    type: "functional"
+    priority: "high"
+    status: "resolved"
+    description: "The system shall display full student details across 3 tabs: martial arts info, club info, and competition history."
+    tags:
+      primary: "functional"
+      secondary: ["ui", "data"]
+    detail_tabs:
+      - tab: "martial_arts_info"
+        fields: ["current_belt", "join_date", "belt_date", "weight_class", "compete_events"]
+      - tab: "club_info"
+        fields:
+          - source: "clubs.name"
+            label: "ten_clb"
+          - source: "clubs.address"
+            label: "dia_chi"
+          - source: "clubs.province_id"
+            label: "tinh_thanh"
+          - source: "coaches (via club_coaches)"
+            label: "hlv_phu_trach"
+          - source: "coaches.phone"
+            label: "sdt_hlv"
+          - source: "student_clubs.joined_at"
+            label: "ngay_gia_nhap_clb"
+          - source: "student_clubs.left_at"
+            label: "ngay_roi_clb"
+            nullable: true
+      - tab: "competition_history"
+        source_table: "tournament_registrations JOIN tournaments"
+        columns: ["tournament_name", "event_type", "result", "date"]
+    acceptance_criteria:
+      - id: "AC-009"
+        given: "A user clicks on a student's name in the list"
+        when: "The navigation completes"
+        then: "The correct student detail page is displayed"
+        testable: true
+      - id: "AC-010"
+        given: "A user opens the Club tab on the student detail page"
+        when: "The tab loads"
+        then: "All club and coach fields are populated correctly from the database"
+        testable: true
+      - id: "AC-011"
+        given: "A user opens the Competition History tab"
+        when: "The tab loads"
+        then: "All tournaments the student has participated in are listed"
+        testable: true
+
+  - id: "REQ-F06"
+    type: "functional"
+    priority: "high"
+    status: "resolved"
+    description: "The system shall allow authorized users to edit any student's information using the pre-filled creation form."
+    tags:
+      primary: "functional"
+      secondary: ["ui", "data", "auth"]
+    acceptance_criteria:
+      - id: "AC-012"
+        given: "An authorized user opens the edit form for a student"
+        when: "The form loads"
+        then: "All existing student fields are pre-filled with current values"
+        testable: true
+
+  - id: "REQ-F07"
+    type: "functional"
+    priority: "medium"
+    status: "resolved"
+    description: "The system shall allow soft-deletion of one or multiple students by setting status to inactive, with a confirmation dialog. Students with active tournament registrations cannot be deleted."
+    tags:
+      primary: "functional"
+      secondary: ["data", "auth"]
+    acceptance_criteria:
+      - id: "AC-013"
+        given: "A user attempts to delete a student with active tournament registrations"
+        when: "The delete action is triggered"
+        then: "The system rejects the action and displays the reason"
+        testable: true
+
+  - id: "REQ-F08"
+    type: "functional"
+    priority: "high"
+    status: "resolved"
+    description: "The system shall auto-generate a unique student code in the format MS-{00001} on record creation. Codes are never reused."
+    tags:
+      primary: "functional"
+      secondary: ["data"]
+    code_format: "MS-{5-digit-zero-padded-sequence}"
+    acceptance_criteria:
+      - id: "AC-014"
+        given: "A new student record is successfully created"
+        when: "The record is saved"
+        then: "A unique code matching the pattern MS-\\d{5} is assigned and stored"
+        testable: true
+
+non_functional_requirements:
+  - id: "NFR-001"
+    category: "performance"
+    description: "Real-time search results must appear within 300ms of the user stopping typing (debounce applied)"
+    metric:
+      value: "300"
+      unit: "milliseconds"
+      percentile: "P95"
+    priority: "high"
+
+  - id: "NFR-002"
+    category: "performance"
+    description: "Student list page must load within 2 seconds for datasets up to 10,000 records"
+    metric:
+      value: "2"
+      unit: "seconds"
+      percentile: "P95"
+    priority: "high"
+
+  - id: "NFR-003"
+    category: "performance"
+    description: "Batch import of 500 records must complete within 30 seconds"
+    metric:
+      value: "30"
+      unit: "seconds"
+      percentile: "P95"
+    priority: "medium"
+
+  - id: "NFR-004"
+    category: "security"
+    description: "Access to student data must be role-based: admin (full), club_manager (own club only), viewer (read-only)"
+    metric:
+      value: "RBAC enforced"
+      unit: "role check"
+      percentile: ""
+    priority: "high"
+
+constraints:
+  - id: "CON-001"
+    category: "technology"
+    description: "CCCD/CMND must be unique across the entire system regardless of club or province"
+
+  - id: "CON-002"
+    category: "technology"
+    description: "Student records must never be physically deleted. Only soft-delete via status field is permitted"
+
+  - id: "CON-003"
+    category: "technology"
+    description: "All create, update, delete, and import actions must be recorded in audit_logs"
+
+risks:
+  - id: "RISK-001"
+    description: "Club name mismatch during Excel import due to typos — system currently rejects the row with no suggestion"
+    impact: "medium"
+    likelihood: "high"
+    mitigation: "Implement fuzzy matching to suggest the closest club name before rejecting"
+    status: "open"
+
+  - id: "RISK-002"
+    description: "No defined maximum number of students per club — may cause performance issues at scale"
+    impact: "medium"
+    likelihood: "low"
+    mitigation: "Define and enforce a per-club student limit after load testing"
+    status: "open"
+
+open_questions:
+  - id: "Q-001"
+    question: "Khi import Excel có tên CLB gần đúng, hệ thống từ chối hay gợi ý CLB gần nhất?"
+    owner: "Product Owner"
+    due_date: ""
+    status: "open"
+
+  - id: "Q-002"
+    question: "Số lượng môn sinh tối đa mỗi CLB là bao nhiêu?"
+    owner: "Product Owner"
+    due_date: ""
+    status: "open"
+
+glossary:
+  - term: "mon_sinh"
+    definition: "Môn sinh Vovinam — thành viên đã đăng ký học và luyện tập tại một CLB"
+  - term: "dai_cap"
+    definition: "Cấp đai của môn sinh từ Vàng đến Đen 9 đẳng theo quy định Liên đoàn Vovinam"
+  - term: "soft_delete"
+    definition: "Xoá mềm — cập nhật trường status thành inactive thay vì xoá vật lý khỏi database"
+  - term: "clb"
+    definition: "Câu lạc bộ Vovinam trực thuộc tỉnh/thành và Liên đoàn"
+  - term: "ma_vdv"
+    definition: "Mã định danh duy nhất của vận động viên, format MS-{00001}"
+

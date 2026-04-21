@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agent_spec.schema.json",
+  "title": "Agent Specification Schema",
+  "description": "JSON Schema for validating AI-readable agent specifications",
+  "type": "object",
+  "required": ["metadata", "scope", "requirements"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["spec_id", "project_name", "version", "created_at", "status"],
+      "properties": {
+        "spec_id": { "type": "string", "pattern": "^SPEC-[0-9]{3,}$" },
+        "project_name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "created_at": { "type": "string", "format": "date" },
+        "updated_at": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["draft", "review", "approved"] },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "role"],
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["in_scope", "out_of_scope"],
+      "properties": {
+        "in_scope": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "out_of_scope": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "priority", "status", "description", "acceptance_criteria"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^REQ-[0-9]{3,}$" },
+          "type": { "type": "string", "enum": ["functional", "non-functional", "constraint", "risk"] },
+          "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+          "status": { "type": "string", "enum": ["resolved", "unresolved"] },
+          "description": { "type": "string", "minLength": 10 },
+          "tags": {
+            "type": "object",
+            "properties": {
+              "primary": { "type": "string", "enum": ["functional", "non-functional", "constraint", "risk"] },
+              "secondary": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["id", "given", "when", "then", "testable"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^AC-[0-9]{3,}$" },
+                "given": { "type": "string", "minLength": 1 },
+                "when": { "type": "string", "minLength": 1 },
+                "then": { "type": "string", "minLength": 1 },
+                "testable": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "non_functional_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "description", "priority"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^NFR-[0-9]{3,}$" },
+          "category": { "type": "string", "enum": ["performance", "security", "availability", "usability", "compliance"] },
+          "description": { "type": "string" },
+          "metric": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "unit": { "type": "string" },
+              "percentile": { "type": "string" }
+            }
+          },
+          "priority": { "type": "string", "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "description"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^CON-[0-9]{3,}$" },
+          "category": { "type": "string", "enum": ["technology", "budget", "timeline", "compliance"] },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "impact", "likelihood", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^RISK-[0-9]{3,}$" },
+          "description": { "type": "string" },
+          "impact": { "type": "string", "enum": ["high", "medium", "low"] },
+          "likelihood": { "type": "string", "enum": ["high", "medium", "low"] },
+          "mitigation": { "type": "string" },
+          "status": { "type": "string", "enum": ["open", "mitigated", "accepted"] }
+        }
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "question", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^Q-[0-9]{3,}$" },
+          "question": { "type": "string" },
+          "owner": { "type": "string" },
+          "due_date": { "type": "string", "format": "date" },
+          "status": { "type": "string", "enum": ["open", "resolved"] }
+        }
+      }
+    },
+    "glossary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["term", "definition"],
+        "properties": {
+          "term": { "type": "string" },
+          "definition": { "type": "string" }
+        }
+      }
+    }
+  }
+}

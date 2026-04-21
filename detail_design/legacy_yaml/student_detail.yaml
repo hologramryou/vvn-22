@@ -1,0 +1,174 @@
+﻿spec_id: SPEC-002
+spec_name: student_detail
+project: vovinam_fighting
+version: "1.1.0"
+date: "2026-03-25"
+status: ready
+authors: [ai_distiller]
+source_spec: basic_design/01_student_management/student_detail.md
+
+# ─── Scope ───────────────────────────────────────────────────────────────────
+scope:
+  in_scope:
+    - Student detail page with 2 tabs: Cá nhân, Điều kiện
+    - Hero block with name, code, gender, age, belt badge, status, event tags
+    - Stats bar: age, weight class, club, medals
+    - Tab Cá nhân: personal + martial arts info (no email, CCCD, join_date, belt_date)
+    - Tab Điều kiện: eligibility rules + validation status
+    - Responsive: max-w-5xl centered — consistent with list and create pages
+    - Edit button navigates to /students/:id/edit
+  out_of_scope:
+    - Tab Quyền (removed — quyen shown inline in Tab Cá nhân)
+    - Club history tab
+    - Weight class list tab
+    - Belt update history
+    - Email field display
+    - CCCD / CMND field
+    - Tournament registration from this page
+
+# ─── Data Master ─────────────────────────────────────────────────────────────
+data_master:
+  competing_belts:
+    - "Tự vệ nhập môn"
+    - "Lam đai nhập môn"
+    - "Lam đai I"
+    - "Lam đai II"
+    - "Lam đai III"
+    - "Chuẩn Hoàng đai"
+    - "Hoàng đai"
+    - "Hoàng đai I"
+    - "Hoàng đai II"
+    - "Hoàng đai III"
+    - "Chuẩn Hồng đai"
+  non_competing_belts:
+    - "Hồng đai I"
+    - "Hồng đai II"
+    - "Hồng đai III"
+    - "Hồng đai IV"
+    - "Hồng đai V"
+    - "Hồng đai VI"
+    - "Bạch đai"
+
+# ─── Tabs ────────────────────────────────────────────────────────────────────
+tabs:
+  - index: 0
+    label: "Cá nhân"
+    fields_shown:
+      - { key: full_name,        label: "Họ và tên",          required: true }
+      - { key: gender,           label: "Giới tính",          format: "Nam/Nữ" }
+      - { key: phone,            label: "Số điện thoại",      optional: true }
+      - { key: address,          label: "Địa chỉ",            optional: true }
+      - { key: club_name,        label: "Câu lạc bộ",         optional: true }
+      - { key: current_belt,     label: "Đai cấp",            format: "BeltBadge component" }
+      - { key: weight_class,     label: "Hạng cân thi đấu",   format: "label + range, hidden if null" }
+      - { key: compete_events,   label: "Nội dung thi đấu",   format: "tag chips, hidden if empty" }
+      - { key: quyen_selections, label: "Bài quyền thi đấu",  format: "teal tag chips, hidden if empty" }
+      - { key: notes,            label: "Ghi chú",            optional: true, hidden_if_empty: true }
+    fields_hidden:
+      - email        # không thu thập trong form create/edit
+      - id_number    # CCCD — không hiển thị
+      - join_date    # Ngày nhập môn — không hiển thị
+      - belt_date    # Cập đai — không hiển thị
+
+  - index: 1
+    label: "Điều kiện"
+    eligibility_rules:
+      - { icon: "🎂", label: "Độ tuổi thi đấu",       value: "Đối kháng: 17–35 tuổi · Quyền: 17–40 tuổi" }
+      - { icon: "🥋", label: "Cấp đai tối thiểu",      value: "Lam đai: quyền cơ bản · Hoàng đai: quyền chuyên sâu và binh khí" }
+      - { icon: "📋", label: "Giới hạn đăng ký quyền", value: "Tối đa 1–2 bài quyền / VĐV / giải" }
+      - { icon: "⚖️", label: "Giới hạn hạng cân",      value: "01 hạng cân duy nhất / VĐV / giải đối kháng" }
+    realtime_status_fields:
+      - { key: age,            label: "Độ tuổi" }
+      - { key: current_belt,   label: "Cấp đai" }
+      - { key: compete_events, label: "Nội dung đã đăng ký" }
+      - { key: weight_class,   label: "Hạng cân đối kháng" }
+
+# ─── Removed Tabs ────────────────────────────────────────────────────────────
+removed_tabs:
+  - label: "Quyền"
+    reason: "Bài quyền thi đấu hiển thị inline trong Tab Cá nhân — không cần tab riêng"
+  - label: "Hạng cân"
+    reason: "Info merged into Tab Cá nhân"
+  - label: "Câu lạc bộ"
+    reason: "Lịch sử CLB không cần thiết — per user feedback 2026-03-25"
+
+# ─── Responsive ──────────────────────────────────────────────────────────────
+responsive:
+  container: "max-w-5xl mx-auto w-full"
+  rationale: "Nhất quán với list page (max-w-7xl) và create page (max-w-5xl). Không dùng max-w-md."
+  breakpoints:
+    - viewport: "< 768px (portrait & landscape)"
+      layout: "full-width, single column cards"
+    - viewport: ">= 768px"
+      layout: "max-w-5xl centered"
+
+# ─── Acceptance Criteria ─────────────────────────────────────────────────────
+acceptance_criteria:
+  - id: AC-D01
+    description: "VĐV có compete_events → hero + Tab Cá nhân hiển thị event tags"
+    given: "Student has compete_events = ['sparring', 'don_luyen']"
+    when: "User opens detail page"
+    then: "Tags 'Đối kháng · Đơn luyện' visible in hero and Tab 0"
+
+  - id: AC-D02
+    description: "VĐV chưa có compete_events → không hiện event tags"
+    given: "Student has compete_events = null or []"
+    when: "User opens detail page"
+    then: "No event tags shown, no error"
+
+  - id: AC-D03
+    description: "Tab Cá nhân không hiện email, CCCD, ngày nhập môn, belt_date"
+    given: "Any student"
+    when: "User views Tab Cá nhân"
+    then: "email, id_number, join_date, belt_date fields are NOT rendered"
+
+  - id: AC-D04
+    description: "Chỉ có đúng 2 tab: Cá nhân, Điều kiện"
+    given: "Any student"
+    when: "User opens detail page"
+    then: "Tab bar shows exactly 2 tabs, no Quyền tab, no Hạng cân tab"
+
+  - id: AC-D05
+    description: "Hạng cân hiển thị label + range trong Tab Cá nhân"
+    given: "Student has weight_class = 60"
+    when: "User views Tab Cá nhân"
+    then: "'60 kg — 57–60 kg' shown in Hạng cân row"
+
+  - id: AC-D06
+    description: "Responsive nhất quán portrait và landscape"
+    given: "Mobile viewport portrait và landscape"
+    when: "User opens detail page"
+    then: "Container width consistent — không thay đổi đột ngột khi xoay màn hình"
+
+  - id: AC-D07
+    description: "Bài quyền hiển thị trong Tab Cá nhân"
+    given: "Student has quyen_selections = ['Tứ trụ quyền']"
+    when: "User views Tab Cá nhân"
+    then: "Teal tag 'Tứ trụ quyền' shown in Bài quyền thi đấu row"
+
+# ─── Non-functional Requirements ─────────────────────────────────────────────
+non_functional:
+  - id: NFR-D01
+    type: performance
+    description: "Detail page loads in < 1s (P95) on local network"
+  - id: NFR-D02
+    type: accessibility
+    description: "Tab navigation keyboard-accessible"
+  - id: NFR-D03
+    type: security
+    description: "RBAC: viewer can view only, admin/club_manager can edit"
+
+# ─── Changelog ───────────────────────────────────────────────────────────────
+changelog:
+  - version: "1.1.0"
+    date: "2026-03-25"
+    changes:
+      - "Bỏ Tab Quyền — quyen_selections hiển thị inline trong Tab Cá nhân"
+      - "Bỏ email khỏi fields_shown (không thu thập trong create/edit)"
+      - "Responsive: đổi từ max-w-md/max-w-2xl sang max-w-5xl mx-auto w-full"
+      - "Cập nhật AC-D03, AC-D04, AC-D06, thêm AC-D07"
+  - version: "1.0.0"
+    date: "2026-03-25"
+    changes:
+      - "Initial spec"
+

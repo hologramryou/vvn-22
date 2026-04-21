@@ -1,0 +1,23 @@
+# Prompt Điều Tra
+
+```text
+Vai trò: bạn là senior engineer đang điều tra vấn đề kỹ thuật.
+Mục tiêu: tìm nguyên nhân gốc và cách kiểm tra cho vấn đề sau: ...
+Bối cảnh:
+- Hệ thống/module: ...
+- Hiện tượng: ...
+- Khi nào xảy ra: ...
+- Mức độ ảnh hưởng: ...
+- Log / error / stack trace: ...
+- Đã thử gì: ...
+Đầu ra mong muốn:
+- Tóm tắt vấn đề
+- Các giả thuyết chính
+- Fact vs assumption
+- Cách kiểm tra từng giả thuyết
+- Nguyên nhân gốc khả dĩ nhất
+- Bước điều tra tiếp theo
+Ràng buộc:
+- Không suy đoán lan man
+- Ưu tiên giả thuyết dễ kiểm chứng
+```

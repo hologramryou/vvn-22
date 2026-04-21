@@ -1,0 +1,536 @@
+# Deprecated legacy YAML. Do not use as source of truth.
+# See basic_design/03_tournament_management/dynamic_structure_index.md
+api_version: "1.1"
+feature: "dynamic_tournament_structure"
+generated_at: "2026-04-06"
+base_path: "/api"
+auth_scheme: "Bearer JWT"
+
+# ─────────────────────────────────────────────
+# DATA MODELS
+# ─────────────────────────────────────────────
+models:
+  TournamentStructureNode:
+    table: "tournament_structure_nodes"
+    fields:
+      id:            { type: int, pk: true, auto: true }
+      tournament_id: { type: int, fk: "tournaments.id", cascade: "delete", nullable: false }
+      parent_id:     { type: int, fk: "tournament_structure_nodes.id", nullable: true }
+      level:         { type: int, nullable: false }  # 0=Gender 1=Category 2=Group 3=WeightClass
+      name:          { type: str, max: 100, nullable: false }
+      sort_order:    { type: int, nullable: false }  # 1-based sequential within parent
+      created_at:    { type: datetime, server_default: "now()" }
+      updated_at:    { type: datetime, server_default: "now()", onupdate: "now()" }
+    constraints:
+      - unique: ["tournament_id", "parent_id", "name"]
+    indexes:
+      - ["tournament_id"]
+      - ["parent_id"]
+
+  TournamentKata:
+    table: "tournament_katas"
+    fields:
+      id:            { type: int, pk: true, auto: true }
+      tournament_id: { type: int, fk: "tournaments.id", cascade: "delete", nullable: false }
+      name:          { type: str, max: 100, nullable: false }
+      description:   { type: str, max: 500, nullable: true }
+      sort_order:    { type: int, nullable: false }
+    constraints:
+      - unique: ["tournament_id", "name"]
+    indexes:
+      - ["tournament_id"]
+    notes: "Kata là setting chung per giải — KHÔNG gán vào node"
+
+  StudentWeightAssignment:
+    table: "student_weight_assignments"
+    fields:
+      id:            { type: int, pk: true, auto: true }
+      student_id:    { type: int, fk: "students.id", cascade: "delete", nullable: false }
+      tournament_id: { type: int, fk: "tournaments.id", cascade: "delete", nullable: false }
+      node_id:       { type: int, fk: "tournament_structure_nodes.id", nullable: false }
+      registered_at: { type: datetime, server_default: "now()" }
+      reason:        { type: str, max: 20, nullable: false }  # "registered" | "moved"
+    constraints:
+      - unique: ["student_id", "tournament_id"]  # 1 VĐV = 1 node per tournament
+    indexes:
+      - ["tournament_id"]
+      - ["node_id"]
+
+  StudentContestSelection:
+    table: "student_contest_selections"
+    fields:
+      id:            { type: int, pk: true, auto: true }
+      student_id:    { type: int, fk: "students.id", cascade: "delete", nullable: false }
+      tournament_id: { type: int, fk: "tournaments.id", cascade: "delete", nullable: false }
+      contest_type:  { type: str, max: 20, nullable: false }  # "sparring" | "kata"
+      kata_id:       { type: int, fk: "tournament_katas.id", nullable: true }  # null if sparring
+    constraints:
+      - unique: ["student_id", "tournament_id", "contest_type", "kata_id"]
+    indexes:
+      - ["student_id", "tournament_id"]
+    notes:
+      - "sparring: kata_id=null, tối đa 1 entry per (student, tournament)"
+      - "kata: kata_id!=null, nhiều entries (mỗi kata 1 entry)"
+
+# ─────────────────────────────────────────────
+# SHARED RESPONSE SCHEMAS
+# ─────────────────────────────────────────────
+schemas:
+  NodeResponse:
+    id:            int
+    tournament_id: int
+    parent_id:     "int | null"
+    level:         int
+    name:          str
+    sort_order:    int
+    student_count: int
+    created_at:    datetime
+    updated_at:    datetime
+
+  KataResponse:
+    id:            int
+    tournament_id: int
+    name:          str
+    description:   "str | null"
+    sort_order:    int
+    usage_count:   int  # students who selected this kata
+
+  ContestTypeItem:
+    type:      str       # "sparring" | "kata"
+    kata_id:   "int | null"
+    kata_name: "str | null"
+
+  StudentRegistrationResponse:
+    student_id:    int
+    tournament_id: int
+    node_id:       int
+    node_path:     str   # e.g. "Nam > Phong trào > Loại 1A > 45kg"
+    registered_at: datetime
+    contest_types: "[ContestTypeItem]"
+
+# ─────────────────────────────────────────────
+# ENDPOINTS
+# ─────────────────────────────────────────────
+endpoints:
+
+  # 1. GET TREE
+  get_weight_class_nodes:
+    method: GET
+    path: "/tournaments/{tournament_id}/weight-class-nodes"
+    auth: required
+    roles: [admin, referee, viewer]
+    summary: "Lấy cấu trúc tree hạng cân"
+    path_params:
+      tournament_id: { type: int, required: true }
+    query_params:
+      format: { type: enum, values: [tree, flat], default: tree }
+    responses:
+      200:
+        schema:
+          tournament_id:    int
+          tournament_name:  str
+          tournament_status: str
+          nodes:            "NodeTreeResponse[] (nested) hoặc NodeResponse[] (flat)"
+          stats:
+            total_nodes:          int
+            total_weight_classes: int
+            total_students:       int
+      404: { error: TOURNAMENT_NOT_FOUND }
+    business_rules:
+      - "tree format: nodes lồng nhau theo children[]"
+      - "flat format: list phẳng với parent_id để client tự build"
+      - "student_count của node cha = tổng toàn bộ descendants"
+
+  # 2. CREATE NODE
+  create_weight_class_node:
+    method: POST
+    path: "/tournaments/{tournament_id}/weight-class-nodes"
+    auth: required
+    roles: [admin]
+    summary: "Tạo node mới trong tree"
+    path_params:
+      tournament_id: { type: int, required: true }
+    request_body:
+      parent_id: { type: int, nullable: true, description: "null = root level-0" }
+      name:      { type: str, max: 100, required: true }
+    responses:
+      201: { schema: NodeResponse }
+      400:
+        errors:
+          - { code: MAX_DEPTH_EXCEEDED, message: "Không thể tạo node quá level 3" }
+          - { code: DUPLICATE_NAME, message: "Tên đã tồn tại trong cùng parent" }
+          - { code: STRUCTURE_LOCKED, message: "Giải có bracket — chỉ được thêm level-3" }
+      404: { error: TOURNAMENT_NOT_FOUND }
+    business_rules:
+      - "level tự động = parent.level + 1 (hoặc 0 nếu parent_id null)"
+      - "sort_order = max(siblings) + 1"
+      - "PUBLISHED + has_bracket: chỉ tạo được level-3"
+
+  # 3. UPDATE NODE
+  update_weight_class_node:
+    method: PATCH
+    path: "/tournaments/{tournament_id}/weight-class-nodes/{node_id}"
+    auth: required
+    roles: [admin]
+    summary: "Đổi tên node"
+    path_params:
+      tournament_id: { type: int, required: true }
+      node_id:       { type: int, required: true }
+    request_body:
+      name: { type: str, max: 100, required: true }
+    responses:
+      200: { schema: NodeResponse }
+      400: { error: DUPLICATE_NAME }
+      404:
+        errors: [TOURNAMENT_NOT_FOUND, NODE_NOT_FOUND]
+    business_rules:
+      - "Sửa tên được phép ở mọi trạng thái"
+
+  # 4. DELETE NODE
+  delete_weight_class_node:
+    method: DELETE
+    path: "/tournaments/{tournament_id}/weight-class-nodes/{node_id}"
+    auth: required
+    roles: [admin]
+    summary: "Xóa node và toàn bộ descendants"
+    path_params:
+      tournament_id: { type: int, required: true }
+      node_id:       { type: int, required: true }
+    request_body:
+      move_to_node_id:
+        type: int
+        nullable: true
+        description: >
+          Bắt buộc nếu node (hoặc bất kỳ descendant) có VĐV.
+          Phải cùng level với node bị xóa, cùng tournament,
+          không phải descendant của node bị xóa.
+    responses:
+      200:
+        schema:
+          deleted_node_id: int
+          deleted_count:   int
+          moved_students:  int
+      400:
+        errors:
+          - { code: MOVE_TARGET_REQUIRED, message: "Node có VĐV — cần move_to_node_id" }
+          - { code: INVALID_MOVE_TARGET, message: "Target phải cùng level, cùng tournament" }
+          - { code: STRUCTURE_LOCKED, message: "Giải có bracket — không thể xóa" }
+      404:
+        errors: [TOURNAMENT_NOT_FOUND, NODE_NOT_FOUND]
+    business_rules:
+      - "DRAFT: luôn xóa được"
+      - "PUBLISHED + no_bracket: xóa được nếu xử lý VĐV"
+      - "PUBLISHED + has_bracket: KHÔNG xóa"
+      - "VĐV từ TẤT CẢ descendants → move_to_node_id"
+      - "Ghi reason='moved' vào student_weight_assignments"
+      - "Xóa cascade nodes con"
+
+  # 5. REORDER NODES
+  reorder_weight_class_nodes:
+    method: POST
+    path: "/tournaments/{tournament_id}/weight-class-nodes/reorder"
+    auth: required
+    roles: [admin]
+    summary: "Sắp xếp lại thứ tự siblings"
+    path_params:
+      tournament_id: { type: int, required: true }
+    request_body:
+      parent_id: { type: int, nullable: true, description: "null = reorder root nodes" }
+      nodes:
+        type: array
+        items:
+          node_id:    { type: int, required: true }
+          sort_order: { type: int, required: true }
+        description: "Danh sách đầy đủ siblings với sort_order mới"
+    responses:
+      200:
+        schema:
+          updated_count: int
+          nodes:         "[NodeResponse]"
+      400:
+        errors:
+          - { code: INVALID_SIBLINGS, message: "Tất cả nodes phải cùng parent" }
+          - { code: INCOMPLETE_LIST, message: "Phải cung cấp đủ tất cả siblings" }
+    business_rules:
+      - "Chỉ reorder trong cùng parent — không đổi parent"
+      - "Atomic update trong 1 transaction"
+
+  # 6. COPY STRUCTURE
+  copy_tournament_structure:
+    method: POST
+    path: "/tournaments/{tournament_id}/weight-class-nodes/copy"
+    auth: required
+    roles: [admin]
+    summary: "Copy cấu trúc từ giải cũ"
+    path_params:
+      tournament_id: { type: int, required: true, description: "Tournament đích (mới)" }
+    request_body:
+      source_tournament_id: { type: int, required: true }
+      copy_katas:           { type: bool, default: true }
+    responses:
+      201:
+        schema:
+          copied_nodes: int
+          copied_katas: int
+          tree:         "[NodeTreeResponse]"
+      400:
+        errors:
+          - { code: TARGET_NOT_EMPTY, message: "Tournament đích đã có nodes" }
+          - { code: SAME_TOURNAMENT, message: "Source và target là cùng 1 giải" }
+      404:
+        errors: [TOURNAMENT_NOT_FOUND, SOURCE_TOURNAMENT_NOT_FOUND]
+    business_rules:
+      - "Chỉ copy nodes + katas — KHÔNG copy VĐV"
+      - "Target phải DRAFT"
+      - "IDs mới được generate, không dùng lại IDs cũ"
+
+  # 7. GET NODE STUDENTS
+  get_node_students:
+    method: GET
+    path: "/tournaments/{tournament_id}/weight-class-nodes/{node_id}/students"
+    auth: required
+    roles: [admin, referee]
+    summary: "Danh sách VĐV thuộc node"
+    path_params:
+      tournament_id: { type: int, required: true }
+      node_id:       { type: int, required: true }
+    query_params:
+      include_descendants: { type: bool, default: true }
+    responses:
+      200:
+        schema:
+          node_id:   int
+          node_path: str
+          students:
+            - student_id:         int
+              student_name:       str
+              assigned_node_id:   int
+              assigned_node_name: str
+              contest_types:      "[ContestTypeItem]"
+          total: int
+      404:
+        errors: [TOURNAMENT_NOT_FOUND, NODE_NOT_FOUND]
+
+  # 8. REGISTER PARTICIPANT
+  register_participant:
+    method: POST
+    path: "/tournaments/{tournament_id}/participants/{student_id}/register"
+    auth: required
+    roles: [admin]
+    summary: "Đăng ký VĐV vào giải (node + nội dung thi đấu)"
+    path_params:
+      tournament_id: { type: int, required: true }
+      student_id:    { type: int, required: true }
+    request_body:
+      node_id:
+        type: int
+        required: true
+        description: "Phải là level-3 (WeightClass)"
+      contest_types:
+        type: array
+        required: true
+        min_items: 1
+        items:
+          type:    { type: str, enum: [sparring, kata], required: true }
+          kata_id: { type: int, nullable: true, required_if: "type=kata" }
+    responses:
+      201: { schema: StudentRegistrationResponse }
+      400:
+        errors:
+          - { code: INVALID_NODE_LEVEL, message: "node_id phải là level-3" }
+          - { code: DUPLICATE_SPARRING, message: "Chỉ 1 sparring entry" }
+          - { code: INVALID_KATA_ID, message: "kata_id không tồn tại hoặc không thuộc giải" }
+          - { code: MISSING_KATA_ID, message: "type=kata cần kata_id" }
+      409: { code: ALREADY_REGISTERED, message: "VĐV đã đăng ký giải này" }
+      404:
+        errors: [TOURNAMENT_NOT_FOUND, STUDENT_NOT_FOUND, NODE_NOT_FOUND]
+    business_rules:
+      - "UNIQUE(student_id, tournament_id) — 1 VĐV 1 node per tournament"
+      - "sparring: tối đa 1, kata_id=null"
+      - "kata: kata_id phải thuộc tournament_id"
+      - "Tạo StudentWeightAssignment + StudentContestSelections trong 1 transaction"
+
+  # 9. REASSIGN NODE
+  reassign_participant_node:
+    method: POST
+    path: "/tournaments/{tournament_id}/participants/{student_id}/reassign"
+    auth: required
+    roles: [admin]
+    summary: "Chuyển VĐV sang hạng cân khác"
+    path_params:
+      tournament_id: { type: int, required: true }
+      student_id:    { type: int, required: true }
+    request_body:
+      new_node_id: { type: int, required: true, description: "Level-3 node mới" }
+    responses:
+      200: { schema: StudentRegistrationResponse }
+      400:
+        errors:
+          - { code: INVALID_NODE_LEVEL, message: "new_node_id phải là level-3" }
+          - { code: SAME_NODE, message: "VĐV đã ở node này" }
+      404:
+        errors: [PARTICIPANT_NOT_FOUND, NODE_NOT_FOUND]
+    business_rules:
+      - "Chỉ đổi node — contest_types giữ nguyên"
+      - "reason = 'moved'"
+
+  # 10. UPDATE CONTEST TYPES
+  update_contest_types:
+    method: PATCH
+    path: "/tournaments/{tournament_id}/participants/{student_id}/contest-types"
+    auth: required
+    roles: [admin]
+    summary: "Cập nhật nội dung thi đấu"
+    path_params:
+      tournament_id: { type: int, required: true }
+      student_id:    { type: int, required: true }
+    request_body:
+      contest_types:
+        type: array
+        required: true
+        min_items: 1
+        items:
+          type:    { type: str, enum: [sparring, kata] }
+          kata_id: { type: int, nullable: true }
+    responses:
+      200: { schema: StudentRegistrationResponse }
+      400:
+        errors:
+          - { code: DUPLICATE_SPARRING }
+          - { code: INVALID_KATA_ID }
+      404: { error: PARTICIPANT_NOT_FOUND }
+    business_rules:
+      - "Replace toàn bộ — delete old rồi insert new trong 1 transaction"
+
+  # 11. GET PARTICIPANT REGISTRATION
+  get_participant_registration:
+    method: GET
+    path: "/tournaments/{tournament_id}/participants/{student_id}"
+    auth: required
+    roles: [admin, referee]
+    summary: "Xem thông tin đăng ký của VĐV"
+    path_params:
+      tournament_id: { type: int, required: true }
+      student_id:    { type: int, required: true }
+    responses:
+      200: { schema: StudentRegistrationResponse }
+      404:
+        errors: [TOURNAMENT_NOT_FOUND, PARTICIPANT_NOT_FOUND]
+
+  # 12. LIST KATAS
+  list_katas:
+    method: GET
+    path: "/tournaments/{tournament_id}/katas"
+    auth: required
+    roles: [admin, referee, viewer]
+    summary: "Danh sách bài quyền của giải"
+    path_params:
+      tournament_id: { type: int, required: true }
+    responses:
+      200:
+        schema:
+          tournament_id: int
+          katas:         "[KataResponse]"
+          total:         int
+      404: { error: TOURNAMENT_NOT_FOUND }
+
+  # 13. CREATE KATA
+  create_kata:
+    method: POST
+    path: "/tournaments/{tournament_id}/katas"
+    auth: required
+    roles: [admin]
+    summary: "Tạo bài quyền mới"
+    path_params:
+      tournament_id: { type: int, required: true }
+    request_body:
+      name:        { type: str, max: 100, required: true }
+      description: { type: str, max: 500, nullable: true }
+    responses:
+      201: { schema: KataResponse }
+      400: { error: DUPLICATE_KATA_NAME }
+      404: { error: TOURNAMENT_NOT_FOUND }
+    business_rules:
+      - "sort_order = max(existing) + 1"
+
+  # 14. UPDATE KATA
+  update_kata:
+    method: PATCH
+    path: "/tournaments/{tournament_id}/katas/{kata_id}"
+    auth: required
+    roles: [admin]
+    summary: "Sửa bài quyền"
+    path_params:
+      tournament_id: { type: int, required: true }
+      kata_id:       { type: int, required: true }
+    request_body:
+      name:        { type: str, max: 100, nullable: true }
+      description: { type: str, max: 500, nullable: true }
+    responses:
+      200: { schema: KataResponse }
+      400: { error: DUPLICATE_KATA_NAME }
+      404:
+        errors: [TOURNAMENT_NOT_FOUND, KATA_NOT_FOUND]
+
+  # 15. DELETE KATA
+  delete_kata:
+    method: DELETE
+    path: "/tournaments/{tournament_id}/katas/{kata_id}"
+    auth: required
+    roles: [admin]
+    summary: "Xóa bài quyền"
+    path_params:
+      tournament_id: { type: int, required: true }
+      kata_id:       { type: int, required: true }
+    responses:
+      200:
+        schema:
+          deleted_kata_id: int
+          kata_name:       str
+      409:
+        schema:
+          error:                   KATA_IN_USE
+          affected_students_count: int
+    business_rules:
+      - "StudentContestSelection.kata_id = kata_id → 409, không xóa"
+
+  # 16. REORDER KATAS
+  reorder_katas:
+    method: POST
+    path: "/tournaments/{tournament_id}/katas/reorder"
+    auth: required
+    roles: [admin]
+    summary: "Sắp xếp lại thứ tự bài quyền"
+    path_params:
+      tournament_id: { type: int, required: true }
+    request_body:
+      katas:
+        type: array
+        items:
+          kata_id:    { type: int, required: true }
+          sort_order: { type: int, required: true }
+    responses:
+      200:
+        schema:
+          updated_count: int
+          katas:         "[KataResponse]"
+      400: { error: INCOMPLETE_LIST }
+
+# ─────────────────────────────────────────────
+# DATABASE MIGRATIONS
+# ─────────────────────────────────────────────
+migrations:
+  - version: "007_add_dynamic_structure"
+    description: "Add dynamic tree structure for tournament weight classes"
+    tables_to_create:
+      - tournament_structure_nodes
+      - tournament_katas
+      - student_weight_assignments
+      - student_contest_selections
+    tables_modified: []
+    backward_compat:
+      strategy: "dual-path"
+      notes: >
+        Tournaments cũ (không có nodes) vẫn dùng tournament_weight_classes.
+        Bracket generation kiểm tra: nếu tournament có nodes → dùng tree path.
+        Không cần migrate data cũ.

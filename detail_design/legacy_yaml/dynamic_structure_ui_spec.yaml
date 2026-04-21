@@ -1,0 +1,392 @@
+ui_version: "1.0"
+feature: "dynamic_tournament_structure"
+generated_at: "2026-04-06"
+framework: "React 18 + TypeScript + TanStack Query v5 + Tailwind CSS"
+
+# ─────────────────────────────────────────────
+# SHARED TYPES (TypeScript interfaces)
+# ─────────────────────────────────────────────
+types:
+  TournamentStructureNode:
+    id:            number
+    tournament_id: number
+    parent_id:     "number | null"
+    level:         number  # 0-3
+    name:          string
+    sort_order:    number
+    student_count: number
+    created_at:    string
+    updated_at:    string
+    children:      "TournamentStructureNode[]"  # chỉ có khi format=tree
+
+  TournamentKata:
+    id:            number
+    tournament_id: number
+    name:          string
+    description:   "string | null"
+    sort_order:    number
+    usage_count:   number
+
+  ContestTypeItem:
+    type:      "sparring | kata"
+    kata_id:   "number | null"
+    kata_name: "string | null"
+
+  StudentRegistration:
+    student_id:    number
+    tournament_id: number
+    node_id:       number
+    node_path:     string
+    registered_at: string
+    contest_types: "ContestTypeItem[]"
+
+# ─────────────────────────────────────────────
+# SCREEN 1: Tree Builder
+# ─────────────────────────────────────────────
+screens:
+  TreeBuilderScreen:
+    route: "/tournaments/:tournamentId/structure/weight-classes"
+    title: "Cấu trúc Hạng Cân"
+    description: "Admin xây dựng và quản lý tree 4 cấp hạng cân của giải đấu"
+
+    state:
+      nodes:          "TournamentStructureNode[]"  # flat list từ API
+      treeData:       "TournamentStructureNode[]"  # built client-side từ nodes
+      expandedIds:    "Set<number>"
+      selectedNodeId: "number | null"
+      isDragging:     boolean
+      tournament:     "{ id, name, status, has_bracket }"
+
+    api_calls:
+      on_mount:
+        - endpoint: get_weight_class_nodes
+          params:  { format: flat }
+          stores:  nodes
+      create_node:
+        - endpoint: create_weight_class_node
+          on_success: refetch nodes
+      update_node:
+        - endpoint: update_weight_class_node
+          on_success: update local node
+      delete_node:
+        - endpoint: delete_weight_class_node
+          on_success: refetch nodes
+      reorder:
+        - endpoint: reorder_weight_class_nodes
+          on_success: update sort_orders locally (optimistic)
+      copy_structure:
+        - endpoint: copy_tournament_structure
+          on_success: refetch nodes
+
+    components:
+
+      TreeHeader:
+        description: "Header với tiêu đề, stats, và nút hành động"
+        props:
+          tournament_name: string
+          stats: "{ total_nodes, total_weight_classes, total_students }"
+          can_edit: boolean  # false nếu PUBLISHED + has_bracket
+        elements:
+          - text: "Cấu trúc Hạng Cân — {tournament_name}"
+          - badge: "Tổng: {total_weight_classes} hạng cân | {total_students} VĐV"
+          - button: "📋 Sao chép từ giải khác"  # → CopyStructureModal
+          - button: "➕ Thêm Giới tính"  # chỉ hiện khi tree rỗng hoặc can_edit
+
+      TreeView:
+        description: "Hiển thị tree nodes dạng cây có thể expand/collapse và drag-drop"
+        props:
+          nodes:      "TournamentStructureNode[]"  # nested
+          can_edit:   boolean
+          on_select:  "(nodeId: number) => void"
+        behavior:
+          - "Expand/collapse bằng click vào arrow icon"
+          - "Drag handle hiện khi hover — chỉ active khi can_edit=true"
+          - "Drag-drop chỉ trong cùng parent (validate bằng parent_id)"
+          - "Thả vào sai parent → snaps back, hiển thị tooltip lỗi"
+          - "Khi drag thả thành công → call reorder_weight_class_nodes"
+          - "Optimistic update: cập nhật sort_order ngay, rollback nếu API lỗi"
+        child_component: TreeNode
+
+      TreeNode:
+        description: "1 row trong tree: drag handle + indent + icon + name + student_count + actions"
+        props:
+          node:     TournamentStructureNode
+          can_edit: boolean
+          depth:    number  # = node.level, dùng để indent (depth * 20px)
+        elements:
+          - drag_handle: "⠿ (6 dots icon, chỉ hiện khi can_edit)"
+          - indent:      "{depth * 20}px left padding"
+          - level_icon:
+              0: "👤"   # Gender
+              1: "📂"   # Category
+              2: "🗂️"  # Group
+              3: "⚖️"   # WeightClass
+          - name: "{node.name}"
+          - badge: "{node.student_count} VĐV"
+          - actions (visible on hover, chỉ khi can_edit):
+              - button: "➕" → AddChildModal (tạo node con)
+              - button: "✏️" → EditNodeModal
+              - button: "🗑️" → DeleteNodeModal
+        level_colors:
+          0: "bg-blue-50 font-bold"
+          1: "bg-green-50 font-semibold"
+          2: "bg-yellow-50"
+          3: "bg-white font-mono"
+
+      AddChildModal:
+        description: "Modal tạo node con"
+        trigger: "button ➕ trên TreeNode"
+        props:
+          parent_node: TournamentStructureNode
+        fields:
+          - name: { type: text, label: "Tên", placeholder: "VD: Loại 1A", required: true, maxlength: 100 }
+        footer:
+          - button: "Thêm" → call create_weight_class_node
+          - button: "Huỷ"
+        validation:
+          - "name không được trùng với siblings cùng parent"
+        shows_level_info: "Sẽ tạo: {level_names[parent.level + 1]}"
+        level_names: { 0: "Giới tính", 1: "Loại hình", 2: "Nhóm", 3: "Hạng cân" }
+
+      EditNodeModal:
+        description: "Modal đổi tên node"
+        props:
+          node: TournamentStructureNode
+        fields:
+          - name: { type: text, label: "Tên mới", required: true, maxlength: 100 }
+        footer:
+          - button: "Lưu" → call update_weight_class_node
+          - button: "Huỷ"
+
+      DeleteNodeModal:
+        description: "Modal xác nhận xóa node, hiển thị tùy chọn move VĐV nếu cần"
+        props:
+          node:             TournamentStructureNode
+          all_nodes:        "TournamentStructureNode[]"
+        conditional_display:
+          if node.student_count > 0:
+            - warning: "Node này có {node.student_count} VĐV — chọn hạng cân để chuyển họ sang"
+            - select: "Chuyển VĐV sang:" options = siblings (same level, same tournament)
+          else:
+            - text: "Xác nhận xóa '{node.name}'?"
+        if_has_children:
+          - warning: "Sẽ xóa {n} node con"
+        footer:
+          - button: "Xóa" (red) → call delete_weight_class_node
+          - button: "Huỷ"
+
+      CopyStructureModal:
+        description: "Modal copy cấu trúc từ giải khác"
+        fields:
+          - source_tournament:
+              type: select
+              label: "Sao chép từ giải"
+              options: "list tournaments từ API (trừ current)"
+              required: true
+          - copy_katas:
+              type: checkbox
+              label: "Copy luôn danh sách bài quyền"
+              default: true
+        preview:
+          - "Sau khi sao chép: {source.total_nodes} nodes, {source.total_katas} bài quyền"
+          - warning: "Sẽ xóa toàn bộ cấu trúc hiện tại nếu có"
+        footer:
+          - button: "Sao chép" → call copy_tournament_structure
+          - button: "Huỷ"
+
+    permissions:
+      DRAFT:                    { can_edit: true }
+      PUBLISHED_no_bracket:     { can_edit: true }
+      PUBLISHED_has_bracket:    { can_edit: false, can_add_leaf: true }
+      COMPLETED:                { can_edit: false }
+
+# ─────────────────────────────────────────────
+# SCREEN 2: Kata Manager
+# ─────────────────────────────────────────────
+  KataManagerScreen:
+    route: "/tournaments/:tournamentId/structure/katas"
+    title: "Quản lý Bài Quyền"
+    description: "Admin tạo và quản lý danh sách bài quyền của giải (setting chung)"
+
+    state:
+      katas:       "TournamentKata[]"
+      editingKata: "TournamentKata | null"
+      isDragging:  boolean
+
+    api_calls:
+      on_mount:
+        - endpoint: list_katas
+          stores:   katas
+      create: create_kata
+      update: update_kata
+      delete: delete_kata
+      reorder:
+        - endpoint: reorder_katas
+          behavior: optimistic update
+
+    components:
+
+      KataHeader:
+        elements:
+          - title: "Bài Quyền — {tournament_name}"
+          - badge: "{katas.length} bài quyền"
+          - button: "➕ Thêm Bài Quyền" → AddKataModal
+
+      KataList:
+        description: "Danh sách bài quyền có thể drag-drop reorder"
+        behavior:
+          - "Drag handle để kéo thả (sort trong cùng list)"
+          - "Optimistic update khi drag-drop, rollback nếu lỗi"
+
+      KataRow:
+        props:
+          kata:     TournamentKata
+          can_edit: boolean
+        elements:
+          - drag_handle: "⠿"
+          - order:       "#{kata.sort_order}"
+          - name:        "{kata.name}"
+          - description: "{kata.description}" (muted text)
+          - badge:       "{kata.usage_count} VĐV chọn"
+          - actions (on hover):
+              - button: "✏️" → EditKataModal
+              - button: "🗑️" → DeleteKataConfirm
+
+      AddKataModal:
+        fields:
+          - name:        { type: text,     label: "Tên bài quyền", required: true, maxlength: 100 }
+          - description: { type: textarea, label: "Ghi chú",       required: false, maxlength: 500 }
+        footer:
+          - button: "Thêm" → create_kata
+          - button: "Huỷ"
+
+      EditKataModal:
+        fields:
+          - name:        { type: text,     label: "Tên bài quyền", required: true }
+          - description: { type: textarea, label: "Ghi chú" }
+        footer:
+          - button: "Lưu" → update_kata
+          - button: "Huỷ"
+
+      DeleteKataConfirm:
+        description: "Confirm dialog trước khi xóa"
+        conditional:
+          if kata.usage_count > 0:
+            - error: "Không thể xóa — có {usage_count} VĐV đang chọn bài này"
+            - button: "Đóng" (no delete)
+          else:
+            - text: "Xóa bài quyền '{kata.name}'?"
+            - button: "Xóa" (red) → delete_kata
+            - button: "Huỷ"
+
+# ─────────────────────────────────────────────
+# SCREEN 3: Participant Registration Panel
+# ─────────────────────────────────────────────
+  ParticipantRegistrationPanel:
+    route: "Embedded trong tournament participants management"
+    description: >
+      Panel đăng ký VĐV vào giải — chọn node (hạng cân) và nội dung thi đấu.
+      Dùng khi admin thêm hoặc chỉnh sửa đăng ký của 1 VĐV cụ thể.
+
+    state:
+      selectedNodeId:   "number | null"
+      selectedContests: "ContestTypeItem[]"
+      nodes:            "TournamentStructureNode[]"  # flat
+      katas:            "TournamentKata[]"
+      currentReg:       "StudentRegistration | null"  # nếu VĐV đã đăng ký
+
+    api_calls:
+      on_mount:
+        - endpoint: get_weight_class_nodes (format=flat)
+        - endpoint: list_katas
+        - endpoint: get_participant_registration (nếu có student_id)
+      register:     register_participant
+      update_node:  reassign_participant_node
+      update_types: update_contest_types
+
+    components:
+
+      NodeSelector:
+        description: "Chọn hạng cân từ tree — chỉ cho phép chọn level-3 (WeightClass)"
+        type: cascading_select
+        levels:
+          0: { label: "Giới tính", placeholder: "Chọn giới tính" }
+          1: { label: "Loại hình", placeholder: "Chọn loại hình" }
+          2: { label: "Nhóm",     placeholder: "Chọn nhóm" }
+          3: { label: "Hạng cân", placeholder: "Chọn hạng cân" }
+        behavior:
+          - "Chọn level-0 → filter level-1 options"
+          - "Chọn level-1 → filter level-2 options"
+          - "Chọn level-2 → filter level-3 options"
+          - "Chỉ level-3 là giá trị cuối (selectedNodeId)"
+          - "Hiện current selection nếu VĐV đã đăng ký"
+
+      ContestTypeSelector:
+        description: "Chọn nội dung thi đấu"
+        sections:
+          sparring:
+            type: checkbox
+            label: "Đối kháng (Sparring)"
+            single: true  # chỉ 1
+          kata:
+            type: checkbox_group
+            label: "Bài Quyền"
+            options: "katas[]"  # render từ TournamentKata[]
+            multiple: true
+            empty_state: "Giải chưa có bài quyền — thêm tại tab Bài Quyền"
+        validation:
+          - "Phải chọn ít nhất 1 nội dung"
+
+      RegistrationSummary:
+        description: "Hiển thị tóm tắt trước khi submit"
+        shows:
+          - node_path: "Nam > Phong trào > Loại 1A > 45kg"
+          - contests:  "Đối kháng + Quyền Cầu Thủ, Quyền Thiếu Niên"
+
+      SubmitButton:
+        label_new:  "Đăng ký"
+        label_edit: "Cập nhật"
+        disabled_if: "!selectedNodeId || selectedContests.length === 0"
+        on_click:
+          if new_registration:  register_participant
+          if change_node:       reassign_participant_node → update_contest_types
+          if change_types_only: update_contest_types
+
+# ─────────────────────────────────────────────
+# NAVIGATION
+# ─────────────────────────────────────────────
+navigation:
+  tournament_detail_tabs:
+    - label: "Thông tin"
+      route: "/tournaments/:id"
+    - label: "Cấu trúc Hạng Cân"
+      route: "/tournaments/:id/structure/weight-classes"
+      badge: "node_count"
+    - label: "Bài Quyền"
+      route: "/tournaments/:id/structure/katas"
+      badge: "kata_count"
+    - label: "VĐV"
+      route: "/tournaments/:id/participants"
+    - label: "Bảng Đấu"
+      route: "/tournaments/:id/brackets"
+
+# ─────────────────────────────────────────────
+# ERROR STATES (UI)
+# ─────────────────────────────────────────────
+error_states:
+  empty_tree:
+    message: "Chưa có cấu trúc hạng cân"
+    action:  "Thêm Giới tính đầu tiên"
+    show_copy_button: true
+
+  empty_katas:
+    message: "Chưa có bài quyền nào"
+    action:  "Thêm Bài Quyền"
+
+  locked_structure:
+    message: "Giải đã phát hành và có bảng đấu — không thể xóa hoặc di chuyển node"
+    allowed: "Vẫn có thể thêm hạng cân mới và đổi tên"
+
+  drag_invalid:
+    message: "Chỉ có thể sắp xếp trong cùng cấp"
+    duration: 2000ms  # auto-hide toast

@@ -1,0 +1,491 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.screen-wrap {
+  max-width: 420px; margin: 0 auto;
+  background: var(--color-background-tertiary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden; font-size: 14px;
+  font-family: var(--font-sans);
+}
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--color-background-primary);
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+.top-bar .back { font-size: 20px; color: var(--color-text-secondary); cursor: pointer; }
+.top-bar .title { font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
+.top-bar .edit-btn { font-size: 13px; color: #185FA5; cursor: pointer; font-weight: 500; }
+.hero {
+  background: #0f2c5c;
+  padding: 16px; display: flex; align-items: center; gap: 14px;
+}
+.avatar {
+  width: 68px; height: 68px; border-radius: 50%;
+  background: #E6F1FB; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 500; color: #185FA5;
+  border: 2.5px solid rgba(255,255,255,0.25); flex-shrink: 0; position: relative;
+}
+.belt-badge {
+  position: absolute; bottom: -3px; right: -6px;
+  background: #EF9F27; color: #412402; font-size: 9px; font-weight: 500;
+  padding: 2px 5px; border-radius: 8px; border: 1.5px solid #fff; white-space: nowrap;
+}
+.hero-info { flex: 1; }
+.hero-name { font-size: 17px; font-weight: 500; color: #fff; margin-bottom: 2px; }
+.hero-id { font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+.hero-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.tag-gender { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85); }
+.tag-active { background: #C0DD97; color: #27500A; }
+.tag-age { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85); }
+.stats-row {
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 1px; background: var(--color-border-tertiary);
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+.stat-cell { background: var(--color-background-primary); padding: 10px 6px; text-align: center; }
+.stat-val { font-size: 16px; font-weight: 500; color: var(--color-text-primary); }
+.stat-lbl { font-size: 10px; color: var(--color-text-secondary); margin-top: 1px; }
+.tabs {
+  display: flex; background: var(--color-background-primary);
+  border-bottom: 0.5px solid var(--color-border-tertiary); overflow-x: auto;
+}
+.tab {
+  flex: 1; min-width: 72px; padding: 9px 6px; text-align: center;
+  font-size: 11px; font-weight: 500; color: var(--color-text-secondary);
+  cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.tab.active { color: #185FA5; border-bottom-color: #185FA5; }
+.content-area { padding: 10px; display: flex; flex-direction: column; gap: 9px; }
+.pane { display: none; flex-direction: column; gap: 9px; }
+.pane.active { display: flex; }
+.section-card {
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg); overflow: hidden;
+}
+.section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 13px; border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+.section-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); display: flex; align-items: center; gap: 6px; }
+.sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.d-blue { background: #378ADD; } .d-amber { background: #EF9F27; }
+.d-teal { background: #1D9E75; } .d-coral { background: #D85A30; }
+.d-purple { background: #7F77DD; }
+.section-badge {
+  font-size: 10px; color: var(--color-text-secondary);
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 10px; padding: 2px 7px;
+}
+.row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 13px; border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+.row:last-child { border-bottom: none; }
+.rl { font-size: 12px; color: var(--color-text-secondary); }
+.rv { font-size: 12px; font-weight: 500; color: var(--color-text-primary); text-align: right; max-width: 55%; }
+
+/* HẠNG CÂN */
+.gender-toggle { display: flex; gap: 6px; padding: 10px 13px; }
+.g-btn {
+  flex: 1; padding: 6px; text-align: center; font-size: 12px; font-weight: 500;
+  border-radius: var(--border-radius-md); cursor: pointer;
+  border: 0.5px solid var(--color-border-secondary);
+  color: var(--color-text-secondary); background: var(--color-background-secondary);
+  font-family: var(--font-sans);
+}
+.g-btn.active { background: #E6F1FB; color: #185FA5; border-color: #85B7EB; }
+.weight-list { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+.weight-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+}
+.weight-item.reg { background: #E6F1FB; border-color: #B5D4F4; }
+.wleft { display: flex; align-items: center; gap: 8px; }
+.wicon {
+  width: 32px; height: 32px; border-radius: 6px;
+  background: #D3D1C7; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500; color: #2C2C2A; flex-shrink: 0;
+}
+.wicon.active-icon { background: #85B7EB; color: #042C53; }
+.wname { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+.wrange { font-size: 10px; color: var(--color-text-secondary); margin-top: 1px; }
+.wbadge {
+  font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 8px;
+}
+.wb-reg { background: #C0DD97; color: #27500A; }
+.wb-none { background: var(--color-background-primary); color: var(--color-text-secondary); border: 0.5px solid var(--color-border-tertiary); }
+
+/* QUYỀN */
+.quyen-section { padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
+.quyen-group-title {
+  font-size: 10px; font-weight: 500; color: var(--color-text-secondary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 6px 2px 3px;
+}
+.quyen-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary); cursor: pointer;
+}
+.quyen-item.sel { background: #E6F1FB; border-color: #85B7EB; }
+.qleft { display: flex; align-items: center; gap: 8px; }
+.qcheck {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1.5px solid var(--color-border-secondary);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+}
+.qcheck.on { background: #185FA5; border-color: #185FA5; }
+.qcheck.on::after { content: ''; width: 6px; height: 4px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translateY(-1px); }
+.qname { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+.qtag {
+  font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 500;
+}
+.qt-don { background: #E1F5EE; color: #0F6E56; }
+.qt-song { background: #EEEDFE; color: #534AB7; }
+.qt-da { background: #FAECE7; color: #993C1D; }
+.qt-dt { background: #FAEEDA; color: #854F0B; }
+
+/* CLB */
+.club-body { padding: 13px; display: flex; flex-direction: column; gap: 9px; }
+.club-row { display: flex; align-items: flex-start; gap: 10px; }
+.c-icon {
+  width: 30px; height: 30px; border-radius: var(--border-radius-md);
+  background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  font-size: 14px;
+}
+.c-lbl { font-size: 10px; color: var(--color-text-secondary); margin-bottom: 2px; }
+.c-val { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.c-sub { font-size: 11px; color: var(--color-text-secondary); }
+
+/* ĐIỀU KIỆN */
+.cond-list { padding: 8px 13px; display: flex; flex-direction: column; gap: 5px; }
+.cond-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 9px; border-radius: var(--border-radius-md); background: var(--color-background-secondary); }
+.cond-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.cond-key { font-size: 11px; font-weight: 500; color: var(--color-text-primary); }
+.cond-val { font-size: 11px; color: var(--color-text-secondary); margin-top: 1px; }
+.warn-box {
+  margin: 8px 13px 10px; padding: 8px 10px;
+  background: #FAEEDA; border: 0.5px solid #FAC775;
+  border-radius: var(--border-radius-md);
+  font-size: 11px; color: #633806; line-height: 1.5;
+}
+
+.add-btn {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 9px; border: 1px dashed var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: none; color: var(--color-text-secondary);
+  font-size: 12px; cursor: pointer; font-family: var(--font-sans); width: 100%;
+}
+</style>
+
+<div class="screen-wrap">
+  <div class="top-bar">
+    <span class="back">‹</span>
+    <span class="title">Hồ sơ vận động viên</span>
+    <span class="edit-btn">Sửa</span>
+  </div>
+
+  <div class="hero">
+    <div class="avatar" style="position:relative;">
+      NTH
+      <span class="belt-badge">Hoàng đai</span>
+    </div>
+    <div class="hero-info">
+      <div class="hero-name">Nguyễn Thành Hưng</div>
+      <div class="hero-id">Mã VĐV: VVN-2025-0347 · Nam · 22 tuổi</div>
+      <div class="hero-tags">
+        <span class="tag tag-active">Đang thi đấu</span>
+        <span class="tag tag-age">Đối kháng + Quyền</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-cell"><div class="stat-val">22</div><div class="stat-lbl">Tuổi</div></div>
+    <div class="stat-cell"><div class="stat-val">62 kg</div><div class="stat-lbl">Cân nặng</div></div>
+    <div class="stat-cell"><div class="stat-val">Hoàng đai</div><div class="stat-lbl">Cấp đai</div></div>
+    <div class="stat-cell"><div class="stat-val">3</div><div class="stat-lbl">HCV/HCB/HCĐ</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="sw('thongtin',this)">Cá nhân</div>
+    <div class="tab" onclick="sw('hangcan',this)">Hạng cân</div>
+    <div class="tab" onclick="sw('quyen',this)">Quyền</div>
+    <div class="tab" onclick="sw('clb',this)">Câu lạc bộ</div>
+    <div class="tab" onclick="sw('dieukien',this)">Điều kiện</div>
+  </div>
+
+  <div class="content-area">
+
+    <!-- CÁ NHÂN -->
+    <div id="pane-thongtin" class="pane active">
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title"><span class="sdot d-blue"></span>Thông tin cá nhân</span>
+        </div>
+        <div class="row"><span class="rl">Họ và tên</span><span class="rv">Nguyễn Thành Hưng</span></div>
+        <div class="row"><span class="rl">Ngày sinh</span><span class="rv">15/03/2003</span></div>
+        <div class="row"><span class="rl">Giới tính</span><span class="rv">Nam</span></div>
+        <div class="row"><span class="rl">CCCD / CMND</span><span class="rv">079203012345</span></div>
+        <div class="row"><span class="rl">Số điện thoại</span><span class="rv">0912 345 678</span></div>
+        <div class="row"><span class="rl">Địa chỉ</span><span class="rv">Quận 3, TP. Hồ Chí Minh</span></div>
+        <div class="row"><span class="rl">Tỉnh / Thành phố</span><span class="rv">TP. Hồ Chí Minh</span></div>
+      </div>
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title"><span class="sdot d-amber"></span>Thông số thể chất & đai cấp</span>
+        </div>
+        <div class="row"><span class="rl">Chiều cao</span><span class="rv">170 cm</span></div>
+        <div class="row"><span class="rl">Cân nặng</span><span class="rv">62 kg</span></div>
+        <div class="row"><span class="rl">Cấp đai hiện tại</span><span class="rv" style="color:#BA7517;">Hoàng đai</span></div>
+        <div class="row"><span class="rl">Năm bắt đầu</span><span class="rv">2016</span></div>
+        <div class="row"><span class="rl">Số năm luyện tập</span><span class="rv">9 năm</span></div>
+      </div>
+    </div>
+
+    <!-- HẠNG CÂN -->
+    <div id="pane-hangcan" class="pane">
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title"><span class="sdot d-amber"></span>Hạng cân thi đấu đối kháng</span>
+          <span class="section-badge" id="reg-count-badge">1 đăng ký</span>
+        </div>
+        <div class="gender-toggle">
+          <button class="g-btn active" onclick="switchGender('nam',this)">Nam</button>
+          <button class="g-btn" onclick="switchGender('nu',this)">Nữ</button>
+        </div>
+        <div class="weight-list" id="weight-list"></div>
+      </div>
+      <button class="add-btn">+ Thay đổi hạng cân đăng ký</button>
+    </div>
+
+    <!-- QUYỀN -->
+    <div id="pane-quyen" class="pane">
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title"><span class="sdot d-teal"></span>Nội dung thi quyền đăng ký</span>
+          <span class="section-badge" id="quyen-count">2 / tối đa 2</span>
+        </div>
+        <div id="quyen-body"></div>
+      </div>
+      <button class="add-btn">+ Thay đổi đăng ký quyền</button>
+    </div>
+
+    <!-- CLB -->
+    <div id="pane-clb" class="pane">
+      <div class="section-card">
+        <div class="section-head">
+          <span class="section-title"><span class="sdot d-coral"></span>Câu lạc bộ hiện tại</span>
+        </div>
+        <div class="club-body">
+          <div class="club-row"><div class="c-icon">🏛</div><div><div class="c-lbl">Tên câu lạc bộ</div><div class="c-val">CLB Vovinam Quận 3</div></div></div>
+          <div class="club-row"><div class="c-icon">📍</div><div><div class="c-lbl">Địa chỉ tập luyện</div><div class="c-val">Sân vận động Quận 3</div><div class="c-sub">123 Võ Văn Tần, Q.3, TP.HCM</div></div></div>
+          <div class="club-row"><div class="c-icon">🏅</div><div><div class="c-lbl">Liên đoàn trực thuộc</div><div class="c-val">Liên đoàn Vovinam TP.HCM</div></div></div>
+          <div class="club-row"><div class="c-icon">👤</div><div><div class="c-lbl">Huấn luyện viên phụ trách</div><div class="c-val">Thầy Trần Văn Minh</div><div class="c-sub">Hoàng đai 3 cấp · ĐT: 0987 654 321</div></div></div>
+          <div class="club-row"><div class="c-icon">📅</div><div><div class="c-lbl">Ngày gia nhập CLB</div><div class="c-val">10/01/2020</div></div></div>
+          <div class="club-row"><div class="c-icon">📄</div><div><div class="c-lbl">Mã CLB</div><div class="c-val">CLB-HCM-Q3-004</div></div></div>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-head"><span class="section-title"><span class="sdot d-blue"></span>Lịch sử câu lạc bộ</span></div>
+        <div class="row"><span class="rl">2020 – nay</span><span class="rv">CLB Vovinam Quận 3</span></div>
+        <div class="row"><span class="rl">2018 – 2020</span><span class="rv">CLB Vovinam Bình Thạnh</span></div>
+        <div class="row"><span class="rl">2016 – 2018</span><span class="rv">CLB Trường THPT Lê Quý Đôn</span></div>
+      </div>
+    </div>
+
+    <!-- ĐIỀU KIỆN -->
+    <div id="pane-dieukien" class="pane">
+      <div class="section-card">
+        <div class="section-head"><span class="section-title"><span class="sdot d-purple"></span>Điều kiện tham dự giải</span></div>
+        <div class="cond-list">
+          <div class="cond-row">
+            <div class="cond-icon">🎂</div>
+            <div>
+              <div class="cond-key">Độ tuổi thi đấu</div>
+              <div class="cond-val">Đối kháng: 17 – 35 tuổi · Quyền: 17 – 40 tuổi</div>
+              <div class="cond-val">Học sinh: theo cấp THCS / THPT (lứa tuổi riêng)</div>
+            </div>
+          </div>
+          <div class="cond-row">
+            <div class="cond-icon">🥋</div>
+            <div>
+              <div class="cond-key">Cấp đai tối thiểu</div>
+              <div class="cond-val">Lam đai: Quyền cơ bản (Tứ trụ, Ngũ môn...)</div>
+              <div class="cond-val">Chuẩn hoàng đai: Quyền nâng cao (Long hổ, Xà quyền...)</div>
+              <div class="cond-val">Hoàng đai: Quyền chuyên sâu và binh khí</div>
+            </div>
+          </div>
+          <div class="cond-row">
+            <div class="cond-icon">📋</div>
+            <div>
+              <div class="cond-key">Giới hạn đăng ký quyền</div>
+              <div class="cond-val">Tối đa 01 – 02 bài quyền / VĐV / giải (theo điều lệ từng giải)</div>
+            </div>
+          </div>
+          <div class="cond-row">
+            <div class="cond-icon">⚖️</div>
+            <div>
+              <div class="cond-key">Giới hạn đăng ký hạng cân</div>
+              <div class="cond-val">01 hạng cân duy nhất / VĐV / giải đối kháng</div>
+            </div>
+          </div>
+          <div class="cond-row">
+            <div class="cond-icon">🏫</div>
+            <div>
+              <div class="cond-key">Giải học sinh (THCS / THPT)</div>
+              <div class="cond-val">Hạng cân nhẹ hơn, phân cấp theo lứa tuổi học sinh</div>
+            </div>
+          </div>
+        </div>
+        <div class="warn-box">
+          ⚠️ Môn sinh cần đảm bảo cấp đai phù hợp với từng nội dung bài quyền trước khi đăng ký. Thông tin dựa trên quy định của Liên đoàn Vovinam Việt Nam.
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-head"><span class="section-title"><span class="sdot d-blue"></span>Trạng thái hợp lệ của VĐV này</span></div>
+        <div class="row"><span class="rl">Độ tuổi</span><span class="rv" style="color:#3B6D11;">Hợp lệ (22 tuổi)</span></div>
+        <div class="row"><span class="rl">Cấp đai</span><span class="rv" style="color:#3B6D11;">Hợp lệ (Hoàng đai)</span></div>
+        <div class="row"><span class="rl">Số bài quyền đăng ký</span><span class="rv" style="color:#3B6D11;">2 / 2 (tối đa)</span></div>
+        <div class="row"><span class="rl">Hạng cân đối kháng</span><span class="rv" style="color:#3B6D11;">1 hạng (hợp lệ)</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const weightData = {
+  nam: [
+    { label:'45 kg', range:'Dưới 45 kg', short:'45' },
+    { label:'48 kg', range:'45 – 48 kg', short:'48' },
+    { label:'51 kg', range:'48 – 51 kg', short:'51' },
+    { label:'54 kg', range:'51 – 54 kg', short:'54' },
+    { label:'57 kg', range:'54 – 57 kg', short:'57' },
+    { label:'60 kg', range:'57 – 60 kg', short:'60' },
+    { label:'64 kg', range:'60 – 64 kg', short:'64', reg: true },
+    { label:'68 kg', range:'64 – 68 kg', short:'68' },
+    { label:'72 kg', range:'68 – 72 kg', short:'72' },
+    { label:'77 kg', range:'72 – 77 kg', short:'77' },
+    { label:'82 kg', range:'77 – 82 kg', short:'82' },
+    { label:'92 kg', range:'82 – 92 kg', short:'92' },
+    { label:'Trên 92 kg', range:'Hạng nặng tuyệt đối', short:'+92' },
+  ],
+  nu: [
+    { label:'42 kg', range:'Dưới 42 kg', short:'42' },
+    { label:'45 kg', range:'42 – 45 kg', short:'45' },
+    { label:'48 kg', range:'45 – 48 kg', short:'48' },
+    { label:'51 kg', range:'48 – 51 kg', short:'51' },
+    { label:'54 kg', range:'51 – 54 kg', short:'54' },
+    { label:'57 kg', range:'54 – 57 kg', short:'57' },
+    { label:'60 kg', range:'57 – 60 kg', short:'60' },
+    { label:'63 kg', range:'60 – 63 kg', short:'63' },
+    { label:'66 kg', range:'63 – 66 kg', short:'66' },
+    { label:'70 kg', range:'66 – 70 kg', short:'70' },
+    { label:'75 kg', range:'70 – 75 kg', short:'75' },
+    { label:'Trên 75 kg', range:'Hạng nặng', short:'+75' },
+  ]
+};
+
+const quyenData = {
+  nam: [
+    { group:'Đơn luyện – Nam', type:'don', items:['Tứ trụ quyền','Ngũ môn quyền','Nhập môn quyền','Xà quyền','Lão mai quyền','Việt võ đạo quyền','Tinh hoa lưỡng nghi kiếm pháp','Thái dương côn pháp'] },
+    { group:'Song luyện (Đôi)', type:'song', items:['Song luyện nam – tay không','Song luyện nam – binh khí'] },
+    { group:'Đa luyện (Đồng đội 3–4 VĐV)', type:'da', items:['Đa luyện vũ khí nam','Đa luyện tay không nam'] },
+    { group:'Đồng đội kỹ thuật', type:'dt', items:['Đòn chân tấn công nam','Đồng đội kỹ thuật căn bản nam'] },
+  ],
+  nu: [
+    { group:'Đơn luyện – Nữ', type:'don', items:['Long hổ quyền','Tinh hoa lưỡng nghi kiếm pháp','Thập thế bát thức quyền','Mai hoa quyền'] },
+    { group:'Song luyện (Đôi)', type:'song', items:['Song luyện nữ – tay không','Song luyện nữ – binh khí'] },
+    { group:'Đa luyện (Đồng đội 3–4 VĐV)', type:'da', items:['Đa luyện vũ khí nữ','Đa luyện tay không nữ'] },
+    { group:'Đồng đội kỹ thuật', type:'dt', items:['Đòn chân tấn công nữ','Đồng đội kỹ thuật căn bản nữ'] },
+  ]
+};
+
+const tagLabel = { don:'Đơn luyện', song:'Song luyện', da:'Đa luyện', dt:'Đồng đội' };
+const tagClass = { don:'qt-don', song:'qt-song', da:'qt-da', dt:'qt-dt' };
+
+let selectedQuyen = new Set(['Tứ trụ quyền','Thái dương côn pháp']);
+let currentGender = 'nam';
+const MAX_QUYEN = 2;
+
+function renderWeights(gender) {
+  const list = document.getElementById('weight-list');
+  list.innerHTML = weightData[gender].map(w => `
+    <div class="weight-item ${w.reg?'reg':''}">
+      <div class="wleft">
+        <div class="wicon ${w.reg?'active-icon':''}">${w.short}</div>
+        <div><div class="wname">${w.label}</div><div class="wrange">${w.range}</div></div>
+      </div>
+      <span class="wbadge ${w.reg?'wb-reg':'wb-none'}">${w.reg?'Đã đăng ký':'Không đăng ký'}</span>
+    </div>
+  `).join('');
+  const regCount = weightData[gender].filter(w=>w.reg).length;
+  document.getElementById('reg-count-badge').textContent = regCount + ' đăng ký';
+}
+
+function renderQuyen(gender) {
+  const body = document.getElementById('quyen-body');
+  body.innerHTML = '<div class="quyen-section">' +
+    quyenData[gender].map(grp => `
+      <div class="quyen-group-title">${grp.group}</div>
+      ${grp.items.map(item => `
+        <div class="quyen-item ${selectedQuyen.has(item)?'sel':''}" onclick="toggleQuyen('${item.replace(/'/g,"\\'")}',this)">
+          <div class="qleft">
+            <div class="qcheck ${selectedQuyen.has(item)?'on':''}"></div>
+            <span class="qname">${item}</span>
+          </div>
+          <span class="qtag ${tagClass[grp.type]}">${tagLabel[grp.type]}</span>
+        </div>
+      `).join('')}
+    `).join('') +
+  '</div>';
+  updateQuyenCount();
+}
+
+function toggleQuyen(name, el) {
+  if (selectedQuyen.has(name)) {
+    selectedQuyen.delete(name);
+    el.classList.remove('sel');
+    el.querySelector('.qcheck').classList.remove('on');
+  } else {
+    if (selectedQuyen.size >= MAX_QUYEN) return;
+    selectedQuyen.add(name);
+    el.classList.add('sel');
+    el.querySelector('.qcheck').classList.add('on');
+  }
+  updateQuyenCount();
+}
+
+function updateQuyenCount() {
+  document.getElementById('quyen-count').textContent = selectedQuyen.size + ' / tối đa ' + MAX_QUYEN;
+}
+
+function switchGender(g, btn) {
+  currentGender = g;
+  document.querySelectorAll('.g-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderWeights(g);
+}
+
+function sw(id, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('pane-'+id).classList.add('active');
+}
+
+renderWeights('nam');
+renderQuyen('nam');
+</script>

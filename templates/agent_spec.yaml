@@ -1,0 +1,83 @@
+# LEGACY TEMPLATE
+# Dùng cho pipeline cũ.
+# Khi tạo feature mới, ưu tiên:
+# - templates/basic_design_template.md
+# - templates/detail_design_template.md
+#
+# Agent Specification Template
+# Format: YAML — machine-readable spec for AI agents
+# Validate against: schemas/agent_spec.schema.json
+
+metadata:
+  spec_id: "SPEC-000"
+  project_name: ""
+  version: "0.1.0"
+  created_at: "YYYY-MM-DD"
+  updated_at: "YYYY-MM-DD"
+  status: "draft"  # draft | review | approved
+  authors:
+    - name: ""
+      role: ""
+
+scope:
+  in_scope:
+    - ""
+  out_of_scope:
+    - ""
+
+stakeholders:
+  - id: "STK-001"
+    role: ""
+    name: ""
+    responsibilities:
+      - ""
+
+requirements:
+  - id: "REQ-001"
+    type: "functional"  # functional | non-functional | constraint | risk
+    priority: "high"    # high | medium | low
+    status: "resolved"  # resolved | unresolved
+    description: ""
+    tags:
+      primary: "functional"
+      secondary: []
+    acceptance_criteria:
+      - id: "AC-001"
+        given: ""
+        when: ""
+        then: ""
+        testable: true
+
+non_functional_requirements:
+  - id: "NFR-001"
+    category: "performance"  # performance | security | availability | usability | compliance
+    description: ""
+    metric:
+      value: ""
+      unit: ""
+      percentile: ""
+    priority: "high"
+
+constraints:
+  - id: "CON-001"
+    category: "technology"  # technology | budget | timeline | compliance
+    description: ""
+
+risks:
+  - id: "RISK-001"
+    description: ""
+    impact: "high"    # high | medium | low
+    likelihood: "medium"  # high | medium | low
+    mitigation: ""
+    status: "open"    # open | mitigated | accepted
+
+open_questions:
+  - id: "Q-001"
+    question: ""
+    owner: ""
+    due_date: "YYYY-MM-DD"
+    status: "open"  # open | resolved
+
+glossary:
+  - term: ""
+    definition: ""

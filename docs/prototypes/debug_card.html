@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Debug AthleteCard Export</title>
+  <!-- modern-screenshot CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/modern-screenshot@1.7.5/dist/modern-screenshot.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #e5e7eb; padding: 32px; }
+    h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; color: #111827; }
+    .subtitle { font-size: 12px; color: #6b7280; margin-bottom: 20px; line-height: 1.5; }
+
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;
+      background: #fff; padding: 14px; border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .field { display: flex; flex-direction: column; }
+    .field label { font-size: 11px; color: #374151; font-weight: 600; margin-bottom: 3px; }
+    .field input { font-size: 12px; border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 8px; width: 200px; }
+    .field input.wide { width: 300px; }
+
+    .btn-row { display: flex; gap: 8px; margin-bottom: 24px; align-items: center; flex-wrap: wrap; }
+    button { padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; }
+    #btn-refresh   { background: #2563eb; color: #fff; }
+    #btn-png       { background: #059669; color: #fff; }
+    #btn-png-hidden { background: #dc2626; color: #fff; }
+    #status { font-size: 12px; padding: 5px 10px; border-radius: 6px; background: #f3f4f6; color: #374151; }
+    #status.ok  { background: #d1fae5; color: #065f46; }
+    #status.err { background: #fee2e2; color: #991b1b; }
+
+    .panels { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+    .panel { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .panel-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; }
+    .info-box { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:8px 12px; font-size:11px; color:#374151; line-height:1.7; min-width:200px; }
+    .info-box strong { color: #111; }
+    #output-img { border: 2px dashed #d1d5db; border-radius: 8px; max-width: 360px; }
+    #output-label { font-size: 10px; color: #6b7280; }
+
+    .diff-box { background:#fffbeb; border:1px solid #fbbf24; border-radius:8px; padding:8px 12px; font-size:11px; line-height:1.7; max-width:300px; }
+  </style>
+</head>
+<body>
+
+<h1>🔍 Debug AthleteCard — html2canvas</h1>
+<div class="subtitle">
+  <b>Xanh lá</b>: chụp element đang hiển thị (kết quả đúng mong đợi)<br>
+  <b>Đỏ</b>: chụp element có <code>opacity:0</code> trên parent (giả lập bug cũ — phải ra sai)
+</div>
+
+<div class="controls">
+  <div class="field"><label>Tên VĐV</label><input id="f-name" value="Bùi Thị Dung" /></div>
+  <div class="field"><label>CLB</label><input id="f-club" value="CLB Vovinam Bình Thạnh" /></div>
+  <div class="field"><label>Năm sinh</label><input id="f-year" value="1992" type="number" /></div>
+  <div class="field"><label>Hạng mục</label><input id="f-cat" value="Phong trào – Loại 5" /></div>
+  <div class="field"><label>Hạng cân</label><input id="f-weight" value="48 kg" /></div>
+  <div class="field"><label>Nội dung</label><input id="f-event" value="Đơn luyện" /></div>
+  <div class="field"><label>Ảnh URL</label><input id="f-photo" value="" placeholder="https://..." /></div>
+  <div class="field"><label>Mã VĐV</label><input id="f-code" value="TS-00192" /></div>
+  <div class="field"><label>Tên giải</label><input id="f-tournament" value="Giải Vovinam Lương Tài Mở Rộng 2026" class="wide" /></div>
+</div>
+
+<div class="btn-row">
+  <button id="btn-refresh">↺ Refresh</button>
+  <button id="btn-png">📸 Export PNG (visible)</button>
+  <button id="btn-png-hidden">💀 Export PNG (opacity:0 parent)</button>
+  <span id="status">Sẵn sàng</span>
+</div>
+
+<div class="panels">
+  <div class="panel">
+    <div class="panel-label">Browser render</div>
+    <div id="card-container"></div>
+    <div class="info-box" id="card-info">–</div>
+  </div>
+  <div class="panel">
+    <div class="panel-label">html2canvas output</div>
+    <img id="output-img" src="" alt="" style="display:none" />
+    <div id="output-label">Chưa export</div>
+    <div class="diff-box" id="diff-box" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────────────────────────────────
+// Card builder — phải khớp 100% với AthleteCard.tsx
+// Layout: flex column, NO position:absolute cho name/club
+// paddingTop:45 thay vì justifyContent:center
+// ────────────────────────────────────────────────────────────────────────────
+function splitName(name) {
+  const m = name.match(/^(giải\s+vovinam)(.*)/i)
+  if (m) return ['GIẢI VOVINAM', m[2].trim().toUpperCase()]
+  return [name.toUpperCase(), '']
+}
+function initials(name) {
+  const p = name.trim().split(' ')
+  return p.length >= 2 ? (p[0][0] + p[p.length-1][0]).toUpperCase() : name.substring(0,2).toUpperCase()
+}
+
+function buildCard(d) {
+  const [l1, l2] = splitName(d.tournament)
+  const el = document.createElement('div')
+
+  // ── outer card ──────────────────────────────────────────────────────────
+  el.style.cssText = `
+    width:360px; height:590px;
+    display:flex; flex-direction:column;
+    background:#f0f4ff;
+    border-radius:16px; overflow:hidden;
+    border:1px solid #bfdbfe;
+    box-shadow:0 20px 60px rgba(0,0,0,0.18);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  `
+
+  // ── header 68px ─────────────────────────────────────────────────────────
+  const hdr = document.createElement('div')
+  hdr.style.cssText = `
+    flex-shrink:0; height:68px;
+    background:linear-gradient(135deg,#0f2461 0%,#1a3a8f 50%,#0f2461 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    position:relative; overflow:hidden; gap:2px;
+  `
+  hdr.innerHTML = `
+    <div style="position:absolute;top:-24px;left:-24px;width:64px;height:64px;border-radius:50%;background:rgba(96,130,220,0.25)"></div>
+    <div style="position:absolute;bottom:-20px;right:-20px;width:56px;height:56px;border-radius:50%;background:rgba(96,130,220,0.25)"></div>
+    <span style="color:#fff;font-weight:800;font-size:14px;letter-spacing:0.12em;line-height:1;position:relative;z-index:1">${l1}</span>
+    ${l2 ? `<span style="color:#facc15;font-weight:700;font-size:13px;letter-spacing:0.06em;line-height:1;position:relative;z-index:1">${l2}</span>` : ''}
+  `
+
+  // ── avatar section 302px — flex column, NO absolute cho name/club ───────
+  const av = document.createElement('div')
+  av.style.cssText = `
+    flex-shrink:0; height:302px;
+    background:linear-gradient(180deg,#1e3a5f 0%,#2d5a8f 100%);
+    display:flex; flex-direction:column; align-items:center;
+    padding-top:45px; padding-bottom:16px; padding-left:20px; padding-right:20px;
+    position:relative;
+  `
+  // dot pattern — absolute OK (decoration only)
+  const dots = document.createElement('div')
+  dots.style.cssText = `
+    position:absolute; top:0; right:0; bottom:0; left:0;
+    opacity:0.06;
+    background-image:radial-gradient(circle,#fff 1px,transparent 1px);
+    background-size:14px 14px;
+  `
+  av.appendChild(dots)
+
+  // avatar circle wrapper
+  const avWrap = document.createElement('div')
+  avWrap.style.cssText = `position:relative; flex-shrink:0; z-index:1;`
+
+  const ring = document.createElement('div')
+  ring.style.cssText = `
+    position:absolute; top:-5px; left:-5px; right:-5px; bottom:-5px;
+    border-radius:50%; border:3px solid rgba(250,204,21,0.55);
+  `
+  avWrap.appendChild(ring)
+
+  const circle = document.createElement('div')
+  circle.style.cssText = `
+    width:120px; height:120px; border-radius:50%;
+    background:#fff; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 24px rgba(0,0,0,0.3),0 0 0 5px rgba(96,165,250,0.28);
+    position:relative; z-index:1;
+  `
+  if (d.photo) {
+    circle.innerHTML = `<div style="width:100%;height:100%;background-image:url('${d.photo}');background-size:cover;background-position:center top"></div>`
+  } else {
+    circle.innerHTML = `<span style="color:#1e3a5f;font-size:40px;font-weight:800;line-height:1">${initials(d.name)}</span>`
+  }
+  avWrap.appendChild(circle)
+  av.appendChild(avWrap)
+
+  // name — flex item (NOT absolute)
+  const nameDiv = document.createElement('div')
+  nameDiv.style.cssText = `
+    margin-top:12px; z-index:1;
+    text-align:center; width:100%; flex-shrink:0;
+  `
+  nameDiv.innerHTML = `
+    <span style="
+      color:#fff; font-weight:800; font-size:20px; line-height:1.3;
+      display:block; overflow:hidden; max-height:54px;
+    ">${d.name}</span>
+  `
+  av.appendChild(nameDiv)
+
+  // club pill — flex item (NOT absolute)
+  if (d.club) {
+    const clubDiv = document.createElement('div')
+    clubDiv.style.cssText = `
+      margin-top:10px; z-index:1;
+      text-align:center; width:100%; flex-shrink:0;
+    `
+    clubDiv.innerHTML = `
+      <span style="
+        display:inline-block;
+        background:rgba(255,255,255,0.18);
+        border-radius:999px;
+        padding:5px 16px;
+        max-width:280px;
+        vertical-align:top;
+      ">
+        <span style="
+          color:#fde68a; font-weight:600; font-size:12px; line-height:1.2;
+          display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        ">${d.club}</span>
+      </span>
+    `
+    av.appendChild(clubDiv)
+  }
+
+  // ── info section 220px ──────────────────────────────────────────────────
+  const info = document.createElement('div')
+  info.style.cssText = `
+    flex-shrink:0; height:220px;
+    display:flex; flex-direction:column;
+    padding:12px 12px 10px;
+  `
+
+  const titleRow = document.createElement('div')
+  titleRow.style.cssText = `display:flex; align-items:center; gap:6px; margin-bottom:10px;`
+  titleRow.innerHTML = `
+    <div style="flex:1;height:1px;background:linear-gradient(to right,transparent,#3b82f6)"></div>
+    <span style="color:#374151;font-weight:700;font-size:9px;letter-spacing:0.1em;line-height:1">THÔNG TIN THI ĐẤU</span>
+    <div style="flex:1;height:1px;background:linear-gradient(to left,transparent,#3b82f6)"></div>
+  `
+  info.appendChild(titleRow)
+
+  const rowsDiv = document.createElement('div')
+  rowsDiv.style.cssText = `display:flex; flex-direction:column; gap:6px; flex:1;`
+
+  function row(lbl, val, accent=false) {
+    const r = document.createElement('div')
+    r.style.cssText = `
+      display:flex; align-items:center; justify-content:space-between;
+      border-radius:8px; padding:0 12px; height:34px;
+      ${accent
+        ? 'background:linear-gradient(90deg,#2563eb,#1d4ed8);'
+        : 'background:#fff; border:1px solid #dbeafe; box-shadow:0 1px 3px rgba(0,0,0,0.06);'
+      }
+    `
+    r.innerHTML = `
+      <span style="font-size:11px;line-height:1;color:${accent?'rgba(219,234,254,0.9)':'#6b7280'}">${lbl}</span>
+      <span style="font-size:12px;line-height:1;font-weight:700;color:${accent?'#fff':'#111827'};max-width:190px;text-align:right">${val}</span>
+    `
+    return r
+  }
+  if (d.year)   rowsDiv.appendChild(row('Năm sinh', d.year))
+  if (d.cat)    rowsDiv.appendChild(row('Hạng mục', d.cat))
+  if (d.weight) rowsDiv.appendChild(row('Hạng cân', d.weight))
+  if (d.event)  rowsDiv.appendChild(row('Nội dung', d.event, true))
+  info.appendChild(rowsDiv)
+
+  const footer = document.createElement('div')
+  footer.style.cssText = `display:flex; align-items:center; justify-content:space-between; margin-top:6px;`
+  footer.innerHTML = `
+    <span style="color:#9ca3af;font-family:monospace;font-size:9px;line-height:1">${d.code}</span>
+    <div style="display:flex;gap:4px;align-items:center">
+      <div style="width:6px;height:6px;border-radius:50%;background:#2563eb"></div>
+      <div style="width:6px;height:6px;border-radius:50%;background:#60a5fa"></div>
+      <div style="width:6px;height:6px;border-radius:50%;background:#93c5fd"></div>
+    </div>
+  `
+  info.appendChild(footer)
+
+  el.appendChild(hdr)
+  el.appendChild(av)
+  el.appendChild(info)
+  return el
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+function getData() {
+  return {
+    name:       document.getElementById('f-name').value || 'Võ Sĩ',
+    club:       document.getElementById('f-club').value,
+    year:       document.getElementById('f-year').value,
+    cat:        document.getElementById('f-cat').value,
+    weight:     document.getElementById('f-weight').value,
+    event:      document.getElementById('f-event').value,
+    photo:      document.getElementById('f-photo').value,
+    code:       document.getElementById('f-code').value,
+    tournament: document.getElementById('f-tournament').value || 'Giải Vovinam Lương Tài Mở Rộng 2026',
+  }
+}
+
+let card = null
+
+function refreshCard() {
+  const c = document.getElementById('card-container')
+  c.innerHTML = ''
+  card = buildCard(getData())
+  c.appendChild(card)
+  const r = card.getBoundingClientRect()
+  document.getElementById('card-info').innerHTML = `
+    <strong>offset:</strong> ${card.offsetWidth} × ${card.offsetHeight} px<br>
+    <strong>rect:</strong> ${Math.round(r.width)} × ${Math.round(r.height)} px<br>
+    <strong>position:</strong> top=${Math.round(r.top)} left=${Math.round(r.left)}<br>
+    <strong>devicePixelRatio:</strong> ${window.devicePixelRatio}
+  `
+}
+
+function setStatus(msg, type='') {
+  const s = document.getElementById('status')
+  s.textContent = msg; s.className = type
+}
+
+function showResult(canvas, label) {
+  const img = document.getElementById('output-img')
+  img.src = canvas.toDataURL('image/png')
+  img.style.display = 'block'
+  document.getElementById('output-label').textContent =
+    `${label} — canvas ${canvas.width}×${canvas.height}px`
+
+  // So sánh kích thước
+  const expected = { w: 360*3, h: 590*3 }
+  const box = document.getElementById('diff-box')
+  if (canvas.width === expected.w && canvas.height === expected.h) {
+    box.style.display = 'block'
+    box.innerHTML = `✅ Kích thước đúng: ${canvas.width}×${canvas.height}px`
+    box.style.background = '#d1fae5'; box.style.borderColor = '#34d399'
+  } else {
+    box.style.display = 'block'
+    box.innerHTML = `❌ Kích thước sai!<br>Mong đợi: ${expected.w}×${expected.h}<br>Thực tế: ${canvas.width}×${canvas.height}`
+    box.style.background = '#fee2e2'; box.style.borderColor = '#f87171'
+  }
+}
+
+// ── Export visible ────────────────────────────────────────────────────────
+document.getElementById('btn-png').addEventListener('click', async () => {
+  if (!card) return setStatus('Refresh trước!', 'err')
+  setStatus('Capturing...', '')
+  try {
+    await document.fonts.ready
+    // modern-screenshot: export PNG
+    const canvas = await window.modernScreenshot.domToPng(card, {
+      scale: 3,
+      backgroundColor: '#f0f4ff',
+      useCORS: true,
+      skipFonts: false,
+    })
+    showResult(canvas, 'visible')
+    setStatus('✅ Export xong', 'ok')
+  } catch(e) { setStatus('❌ ' + e.message, 'err') }
+})
+
+// ── Export hidden (opacity:0 parent) — phải ra sai để prove bug ──────────
+document.getElementById('btn-png-hidden').addEventListener('click', async () => {
+  setStatus('Capturing từ opacity:0 parent...', '')
+  try {
+    const wrap = document.createElement('div')
+    wrap.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;z-index:-1;'
+    const c = buildCard(getData())
+    wrap.appendChild(c)
+    document.body.appendChild(wrap)
+    await document.fonts.ready
+    // modern-screenshot: export PNG
+    const canvas = await window.modernScreenshot.domToPng(c, {
+      scale: 3,
+      backgroundColor: '#f0f4ff',
+      useCORS: true,
+      skipFonts: false,
+    })
+    document.body.removeChild(wrap)
+    showResult(canvas, 'opacity:0 parent (BUG MODE)')
+    setStatus('⚠️ opacity:0 test xong — xem kết quả bên phải', 'err')
+  } catch(e) { setStatus('❌ ' + e.message, 'err') }
+})
+
+document.getElementById('btn-refresh').addEventListener('click', refreshCard)
+refreshCard()
+</script>
+</body>
+</html>

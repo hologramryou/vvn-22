@@ -1,0 +1,306 @@
+metadata:
+  spec_id: "IMPL-001"
+  project_name: "Vovinam Fighting — Student List + Consensus Scoring Architecture"
+  version: "1.0.0"
+  created_at: "2026-03-24"
+  status: "draft"
+  module: "implement"
+  authors:
+    - name: "AI Writer Agent"
+      role: "automated"
+
+tech_stack:
+  backend:
+    framework: "FastAPI"
+    language: "Python 3.12"
+    database: "PostgreSQL 15"
+    cache: "Redis 7"
+    orm: "SQLAlchemy 2.0 async"
+    validation: "Pydantic v2"
+    realtime: "FastAPI WebSocket"
+    excel_import: "openpyxl"
+    auth: "JWT + RBAC"
+  frontend:
+    framework: "React 18"
+    language: "TypeScript"
+    build_tool: "Vite"
+    state: "TanStack Query v5"
+    ui: "shadcn/ui + Ant Design Mobile"
+    styling: "Tailwind CSS"
+    routing: "React Router v6"
+    websocket: "native WebSocket API"
+
+responsive_breakpoints:
+  mobile:
+    max_width_px: 767
+    layout: "card_list"
+    filter_mode: "drawer"
+    nav_mode: "bottom_tab"
+  tablet:
+    min_width_px: 768
+    max_width_px: 1023
+    layout: "compact_table"
+    filter_mode: "inline"
+  desktop:
+    min_width_px: 1024
+    layout: "full_table"
+    filter_mode: "sidebar"
+
+backend_structure:
+  directories:
+    - path: "app/models/student.py"
+      purpose: "SQLAlchemy ORM model with TSVECTOR search_vector column"
+    - path: "app/schemas/student.py"
+      purpose: "Pydantic request/response models"
+    - path: "app/repositories/student_repo.py"
+      purpose: "Async query logic with GIN full-text search"
+    - path: "app/services/student_service.py"
+      purpose: "Business logic and Excel import"
+    - path: "app/services/consensus_engine.py"
+      purpose: "Redis-backed 3/5 referee consensus scoring"
+    - path: "app/routers/students.py"
+      purpose: "REST API endpoints"
+    - path: "app/routers/ws_scoring.py"
+      purpose: "WebSocket endpoint for real-time scoring"
+
+api_endpoints:
+  - method: "GET"
+    path: "/students/"
+    description: "Paginated, filtered student list"
+    query_params:
+      - name: "keyword"
+        type: "string"
+        optional: true
+        behavior: "full_text_search via GIN index on full_name + id_number + code"
+      - name: "club_id"
+        type: "integer"
+        optional: true
+      - name: "belt_rank"
+        type: "string"
+        optional: true
+        values: ["Vang", "Xanh", "Nau", "Den 1", "Den 2", "Den 3", "Den 4", "Den 5", "Den 6", "Den 7", "Den 8", "Den 9"]
+      - name: "province_id"
+        type: "integer"
+        optional: true
+      - name: "status"
+        type: "string"
+        default: "active"
+        values: ["all", "active", "inactive"]
+      - name: "page"
+        type: "integer"
+        default: 1
+        min: 1
+      - name: "page_size"
+        type: "integer"
+        default: 20
+        min: 1
+        max: 100
+      - name: "sort_by"
+        type: "string"
+        default: "full_name"
+      - name: "sort_dir"
+        type: "string"
+        default: "asc"
+        values: ["asc", "desc"]
+    rbac:
+      admin: "see all students"
+      club_manager: "auto_filter club_id=current_user.club_id"
+      viewer: "read only"
+    response_schema:
+      items: "List[StudentListItem]"
+      total: "integer"
+      page: "integer"
+      page_size: "integer"
+      total_pages: "integer"
+
+  - method: "POST"
+    path: "/students/import"
+    description: "Batch import students from .xlsx file"
+    content_type: "multipart/form-data"
+    max_file_size_mb: 10
+    accepted_mime: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]
+    required_columns:
+      - "ho_ten"
+      - "ngay_sinh"
+      - "gioi_tinh"
+      - "cccd"
+      - "ten_cau_lac_bo"
+      - "tinh_thanh"
+      - "ngay_nhap_mon"
+      - "dai_cap"
+    error_strategy:
+      missing_required_column: "stop_all"
+      duplicate_id_number: "skip_row_log_error"
+      club_not_found: "skip_row_log_error"
+      invalid_date: "skip_row_log_error"
+    response_schema:
+      success_count: "integer"
+      fail_count: "integer"
+      error_report_url: "string (downloadable xlsx)"
+
+websocket_endpoint:
+  path: "/ws/match/{match_id}"
+  protocol: "WebSocket"
+  auth: "JWT token in query param ?token="
+  inbound_message:
+    referee_id: "integer"
+    competitor: "string: blue|red"
+    score_type: "string"
+    points: "integer"
+  outbound_messages:
+    - type: "SCORE_CONFIRMED"
+      fields:
+        competitor: "string: blue|red"
+        points: "integer"
+        score_type: "string"
+      trigger: "consensus reached (>=3 referees within 2s)"
+    - type: "SCORE_PENDING"
+      fields:
+        competitor: "string: blue|red"
+        score_type: "string"
+      trigger: "vote received but threshold not yet met"
+    - type: "SCORE_EXPIRED"
+      fields:
+        competitor: "string: blue|red"
+        score_type: "string"
+      trigger: "2s window elapsed without reaching threshold"
+
+consensus_engine:
+  description: "Redis-backed sliding window consensus for scoring"
+  threshold: 3
+  total_referees: 5
+  window_ms: 2000
+  redis_key_pattern: "consensus:{match_id}:{competitor}:{score_type}"
+  redis_key_ttl_ms: 2000
+  algorithm:
+    - step: 1
+      action: "SADD referee_id to Redis Set at key"
+    - step: 2
+      action: "EXPIRE key with TTL=2s using NX flag (only if key is new)"
+    - step: 3
+      action: "SCARD to get current count"
+    - step: 4
+      condition: "count >= 3"
+      action: "DELETE key immediately to prevent double-confirm → return CONFIRMED"
+    - step: 5
+      condition: "count < 3"
+      action: "return PENDING"
+    - step: 6
+      condition: "TTL expires before count >= 3"
+      action: "key auto-deleted by Redis → publish SCORE_EXPIRED event"
+  atomicity: "Use Redis pipeline (transaction=True) for SADD + SCARD + EXPIRE"
+
+frontend_components:
+  - name: "StudentListPage"
+    type: "page"
+    path: "src/pages/students/StudentListPage.tsx"
+    description: "Root page — renders Card or Table based on breakpoint"
+    children:
+      - "StudentCard (mobile)"
+      - "StudentTable (desktop/tablet)"
+      - "FilterDrawer (mobile)"
+      - "FilterBar (desktop)"
+      - "ImportModal"
+      - "Pagination"
+
+  - name: "useStudents"
+    type: "hook"
+    path: "src/hooks/useStudents.ts"
+    description: "TanStack Query hook — syncs filters to URL search params"
+    features:
+      - "debounce keyword 300ms"
+      - "keepPreviousData during page transitions"
+      - "staleTime 30000ms"
+      - "URL params as single source of truth"
+
+  - name: "StudentCard"
+    type: "component"
+    path: "src/components/students/StudentCard.tsx"
+    description: "Mobile card — avatar, name, code, club, belt badge"
+    touch_target_min_px: 44
+
+  - name: "FilterDrawer"
+    type: "component"
+    path: "src/components/students/FilterDrawer.tsx"
+    description: "Bottom sheet drawer for filters on mobile"
+    trigger: "Filter FAB button"
+
+  - name: "useMatchScoring"
+    type: "hook"
+    path: "src/hooks/useMatchScoring.ts"
+    description: "WebSocket hook — sends referee score events, handles CONFIRMED/PENDING messages"
+    on_confirmed: "update TanStack Query cache directly without refetch"
+
+  - name: "RefereeConsole"
+    type: "page"
+    path: "src/pages/scoring/RefereeConsole.tsx"
+    description: "Full-screen tablet scoring UI — 2-column blue/red score buttons"
+    score_buttons:
+      - label: "1 điểm"
+        score_type: "punch_kick_1pt"
+        points: 1
+      - label: "2 điểm"
+        score_type: "high_kick_2pt"
+        points: 2
+      - label: "3 điểm"
+        score_type: "neck_lock_3pt"
+        points: 3
+    touch_optimized: true
+    prevent_accidental_double_tap_ms: 800
+
+performance_requirements:
+  - id: "PERF-001"
+    metric: "Student list API response time"
+    target: "< 200ms"
+    condition: "10,000 records, with GIN index active"
+  - id: "PERF-002"
+    metric: "Search debounce"
+    target: "300ms after last keystroke"
+  - id: "PERF-003"
+    metric: "Consensus decision latency"
+    target: "< 50ms from 3rd referee tap to broadcast"
+  - id: "PERF-004"
+    metric: "WebSocket broadcast to all clients"
+    target: "< 100ms"
+
+implementation_checklist:
+  backend:
+    - task: "Setup FastAPI project with async SQLAlchemy"
+      priority: "high"
+    - task: "Alembic migration for students and student_clubs tables"
+      priority: "high"
+    - task: "GIN index on students.search_vector with tsvector trigger"
+      priority: "high"
+    - task: "StudentRepository.get_list() with full-text + multi-filter"
+      priority: "high"
+    - task: "GET /students/ endpoint with RBAC"
+      priority: "high"
+    - task: "POST /students/import with openpyxl + row-level error log"
+      priority: "high"
+    - task: "Redis client setup and ConsensusEngine class"
+      priority: "high"
+    - task: "WebSocket /ws/match/{match_id} with ConnectionManager"
+      priority: "high"
+    - task: "pytest unit tests for ConsensusEngine (threshold, TTL, double-confirm)"
+      priority: "medium"
+    - task: "pytest integration tests for API endpoints"
+      priority: "medium"
+  frontend:
+    - task: "React + Vite + TanStack Query + Tailwind setup"
+      priority: "high"
+    - task: "useStudents hook with debounce and URL param sync"
+      priority: "high"
+    - task: "StudentCard component (mobile)"
+      priority: "high"
+    - task: "StudentTable component (desktop)"
+      priority: "high"
+    - task: "FilterDrawer (mobile bottom sheet)"
+      priority: "high"
+    - task: "ImportModal with step-by-step flow and error highlight"
+      priority: "high"
+    - task: "useMatchScoring WebSocket hook"
+      priority: "high"
+    - task: "RefereeConsole responsive layout"
+      priority: "high"
+    - task: "Viewport testing: 375px (iPhone SE), 768px (iPad), 1280px (Desktop)"
+      priority: "medium"
