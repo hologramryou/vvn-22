@@ -14,8 +14,11 @@ from app.core.redis_client import get_redis, close_redis
 # ensure all models are imported so Alembic / SQLAlchemy can discover them
 import app.models  # noqa: F401
 
-UPLOAD_DIR = "/app/uploads"
-os.makedirs(f"{UPLOAD_DIR}/avatars", exist_ok=True)
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
+os.makedirs(os.path.join(UPLOAD_DIR, "avatars"), exist_ok=True)
 
 
 @asynccontextmanager

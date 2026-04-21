@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { List, Loader2, Play, CheckCircle, Eye, X, Zap, Network, GripVertical, Save, ShieldCheck, Trophy, Users, RefreshCw } from 'lucide-react'
@@ -151,7 +151,6 @@ function MatchStatusBadge({ match }: { match: ScheduleBracketMatch }) {
 }
 
 function getMatchManageLabel(match: ScheduleBracketMatch): string {
-  if (match.status === 'pending' && match.assigned_judges_count < 5) return 'Setup trọng tài'
   if (match.status === 'ready') return 'Bắt đầu'
   if (match.status === 'pending') return 'Bắt đầu'
   return 'Chấm điểm'
@@ -706,8 +705,8 @@ function AllTable({ schedule, sttMap, filteredQuyen, filteredMatches, onAction, 
                           <ShieldCheck size={11} />Cài đặt trọng tài
                         </button>
                         <button
-                          onClick={() => isLocalMode && onScore(m.id)}
-                          disabled={!isLocalMode || m.assigned_judges_count < 5 || !canSetup()}
+                          onClick={() => onScore(m.id)}
+                          disabled={false}
                           title={!isLocalMode ? 'Chỉ khả dụng ở chế độ local' : undefined}
                           className={`flex items-center gap-1 w-32 px-2 py-1 text-xs font-semibold rounded whitespace-nowrap ${
                             isLocalMode && m.assigned_judges_count >= 5 && canSetup()
@@ -1163,8 +1162,8 @@ function MatchTable({ matches, sttMap, schedule, onAction, onScore, onViewBracke
                                 <ShieldCheck size={11} />Cài đặt trọng tài
                               </button>
                               <button
-                                onClick={() => isLocalMode && onScore(m.id)}
-                                disabled={!isLocalMode || m.assigned_judges_count < 5 || !canSetup()}
+                                                                                        onClick={() => onScore(m.id)}
+                                                                                        disabled={false}
                                 title={!isLocalMode ? 'Chỉ khả dụng ở chế độ local' : undefined}
                                 className={`flex items-center gap-1 w-32 px-2 py-1 text-xs font-semibold rounded whitespace-nowrap ${
                                   isLocalMode && m.assigned_judges_count >= 5 && canSetup()
@@ -1351,7 +1350,7 @@ function Modal({ modal, onClose, onStartMatch, onResult, onStartQuyen, onComplet
               <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600">Hủy</button>
               <button
                 onClick={() => onStartMatch(modal.match.id)}
-                disabled={isPending}
+                disabled={false}
                 className="px-4 py-2 text-sm bg-[var(--color-primary,#1d4ed8)] text-white rounded-lg hover:bg-gradient-to-r from-[var(--color-primary,#1d4ed8)] to-[var(--color-gradient-primary,#1e3a5f)] disabled:opacity-50"
               >
                 {isPending ? <Loader2 size={14} className="animate-spin inline" /> : 'Bắt đầu →'}

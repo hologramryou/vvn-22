@@ -14,5 +14,7 @@ export const getUserName = (): string =>
 export const canScore = (): boolean =>
   ['admin', 'referee'].includes(getUserRole())
 
-export const canSetup = (): boolean =>
-  getUserRole() === 'admin'
+export const canSetup = (): boolean => {
+  const role = getUserRole()
+  return role === 'admin' || role === 'referee'
+}

@@ -91,29 +91,44 @@ export function useMatchScoringWS({
       }, PING_INTERVAL_MS)
     }
 
-    ws.onmessage = (ev: MessageEvent) => {
-      if (!isMountedRef.current) return
-      try {
-        const msg = JSON.parse(ev.data) as WSInbound
-        if (msg.type === 'score_update') {
-          onScoreUpdateRef.current?.(msg.score1, msg.score2)
-        } else if (msg.type === 'snapshot') {
-          onSnapshotRef.current?.(msg.score1, msg.score2, {
-            match_phase: (msg as unknown as Record<string, unknown>).match_phase as string | undefined,
-            status: (msg as unknown as Record<string, unknown>).status as string | undefined,
-            timer_active: (msg as unknown as Record<string, unknown>).timer_active as boolean | undefined,
-          })
-        } else if (msg.type === 'pending_update') {
-          onPendingUpdateRef.current?.(msg.pending, msg.judgeInputs ?? [])
-        } else if (msg.type === 'match_state') {
-          onMatchStateRef.current?.(msg)
-        } else if (msg.type === 'judge_ready') {
-          onJudgeReadyRef.current?.(msg.ready_count)
+      ws.onmessage = (ev: MessageEvent) => {
+        if (!isMountedRef.current) return
+        try {
+          const raw = JSON.parse(ev.data)
+
+          // 🔥 normalize type
+          const type = (raw.type || '').toLowerCase().replace(/-/g, '_')
+
+          console.log("WS TYPE:", raw.type, "→", type)
+
+          if (type === 'score_update' || type === 'live_score') {
+            onScoreUpdateRef.current?.(raw.score1, raw.score2)
+
+          } else if (type === 'snapshot') {
+            onSnapshotRef.current?.(raw.score1, raw.score2, {
+              match_phase: raw.match_phase,
+              status: raw.status,
+              timer_active: raw.timer_active,
+            })
+
+          } else if (type === 'pending_update' || type === 'judge_input') {
+            // 🔥 fallback luôn nếu backend gửi judge_input
+            onPendingUpdateRef.current?.(raw.pending ?? [], raw.judgeInputs ?? [])
+
+          } else if (type === 'match_state') {
+            onMatchStateRef.current?.(raw)
+
+          } else if (type === 'judge_ready') {
+            onJudgeReadyRef.current?.(raw.ready_count)
+
+          } else {
+            console.warn("❗ Unknown WS type:", raw.type)
+          }
+
+        } catch (e) {
+          console.error("WS parse error:", e)
         }
-      } catch {
-        // ignore malformed frames
       }
-    }
 
     ws.onclose = (ev: CloseEvent) => {
       if (pingTimerRef.current) { clearInterval(pingTimerRef.current); pingTimerRef.current = null }
@@ -146,20 +161,52 @@ export function useMatchScoringWS({
     }
   }, [connect])
 
-  const sendJudgeInput = useCallback(
-    (playerSide: 'RED' | 'BLUE', scoreType: '+1' | '+2' | '-1') => {
-      if (wsRef.current?.readyState !== WebSocket.OPEN) return
-      const msg: WSOutbound = {
-        type: 'judge_input',
-        playerSide,
-        scoreType,
-        sequenceIndex: sequenceIndexRef.current++,
-        createdAt: Date.now(),
-      }
-      wsRef.current.send(JSON.stringify(msg))
-    },
-    [],
-  )
+    const sendJudgeInput = useCallback(
+      (playerSide: 'RED' | 'BLUE', scoreType: '+1' | '+2' | '-1') => {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) return
+
+        const msg: WSOutbound = {
+          type: 'judge_input',
+          playerSide,
+          scoreType,
+          sequenceIndex: sequenceIndexRef.current++,
+          createdAt: Date.now(),
+        }
+
+        // 🚀 1. Gửi lên WS (backend xử lý nếu có)
+        wsRef.current.send(JSON.stringify(msg))
+
+        // 🚀 2. OPTIMISTIC UPDATE (fix ngay việc scoring không nhận)
+        let delta = 0
+        if (scoreType === '+1') delta = 1
+        else if (scoreType === '+2') delta = 2
+        else if (scoreType === '-1') delta = -1
+
+        // 👉 cập nhật local score luôn
+        if (onScoreUpdateRef.current) {
+          if (playerSide === 'RED') {
+            onScoreUpdateRef.current(delta, 0)
+          } else {
+            onScoreUpdateRef.current(0, delta)
+          }
+        }
+
+        // 🚀 3. (optional) update pending luôn nếu bạn dùng pending UI
+        if (onPendingUpdateRef.current) {
+          onPendingUpdateRef.current(
+            [
+              {
+                side: playerSide,
+                delta,
+                seq: msg.sequenceIndex,
+              } as any,
+            ],
+            []
+          )
+        }
+      },
+      [],
+    )
 
   const sendAdminCommand = useCallback(
     (cmd: WSOutbound & { type: 'admin_cmd' }) => {

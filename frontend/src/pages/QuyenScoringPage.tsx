@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -67,11 +67,11 @@ export function QuyenScoringPage() {
   const [showDurationEditModal, setShowDurationEditModal] = useState(false)
   const [editDuration, setEditDuration] = useState(120)
 
-  useEffect(() => {
-    if (role !== 'admin') {
-      navigate('/matches', { replace: true })
-    }
-  }, [navigate, role])
+    useEffect(() => {
+      if (role !== 'referee' && role !== 'admin') {
+        navigate('/matches', { replace: true })
+      }
+    }, [navigate, role])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -81,7 +81,7 @@ export function QuyenScoringPage() {
   const detailQ = useQuery({
     queryKey: ['quyen-slot-scoring', slotId],
     queryFn: () => getQuyenSlotScoring(Number(slotId)),
-    enabled: !!slotId && role === 'admin',
+      enabled: !!slotId && (role === 'admin' || role === 'referee'),
     refetchInterval: 2000,
   })
 
